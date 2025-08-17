@@ -1,0 +1,256 @@
+description: |
+  PostGIS is a spatial database extension for PostgreSQL that adds support for geographic objects,
+  allowing location queries to be run in SQL. It provides support for geographic objects
+  and enables location queries on your PostgreSQL database.
+
+data_types:
+  - name: "geometry"
+    description: "Planar spatial data type for projections and Cartesian calculations"
+    example: "geom geometry(POINT, 4326)"
+    notes: "The number after POINT is the SRID (spatial reference ID)"
+  
+  - name: "geography"
+    description: "Geodetic spatial data type for calculations on a spheroid (Earth)"
+    example: "location geography(POINT, 4326)"
+    notes: "More accurate for long distances but slower than geometry"
+    
+  - name: "box2d"
+    description: "2D bounding box"
+    example: "SELECT box2d(geom) FROM spatial_table"
+    
+  - name: "box3d"
+    description: "3D bounding box"
+    example: "SELECT box3d(geom) FROM spatial_table"
+
+functions:
+  constructors:
+    - name: "ST_GeomFromText"
+      description: "Creates a geometry instance from Well-Known Text (WKT)"
+      example: "SELECT ST_GeomFromText('POINT(-71.064 42.28)', 4326)"
+      
+    - name: "ST_MakePoint"
+      description: "Creates a 2D, 3DZ or 4D point geometry"
+      example: "SELECT ST_MakePoint(longitude, latitude)"
+      
+    - name: "ST_Point"
+      description: "Creates a point geometry with the given coordinate values"
+      example: "SELECT ST_Point(longitude, latitude)"
+      
+    - name: "ST_Buffer"
+      description: "Creates a buffer area around a geometry"
+      example: "SELECT ST_Buffer(geom, 1000) FROM locations"
+      notes: "Distance in meters for geography type, in coordinate system units for geometry"
+    
+  accessors:
+    - name: "ST_X"
+      description: "Returns the X coordinate of a point"
+      example: "SELECT ST_X(geom) FROM locations"
+      
+    - name: "ST_Y"
+      description: "Returns the Y coordinate of a point"
+      example: "SELECT ST_Y(geom) FROM locations"
+      
+    - name: "ST_AsText"
+      description: "Returns the Well-Known Text (WKT) representation"
+      example: "SELECT ST_AsText(geom) FROM locations"
+      
+    - name: "ST_AsGeoJSON"
+      description: "Returns the GeoJSON representation of the geometry"
+      example: "SELECT ST_AsGeoJSON(geom) FROM locations"
+      
+    - name: "ST_SRID"
+      description: "Returns the spatial reference identifier"
+      example: "SELECT ST_SRID(geom) FROM locations"
+      
+  operators:
+    - name: "ST_Distance"
+      description: "Returns the distance between two geometries"
+      example: "SELECT ST_Distance(geom_a, geom_b) FROM spatial_data"
+      notes: "Units depend on the projection; use geography type for meters"
+      
+    - name: "ST_DWithin"
+      description: "Returns true if the geometries are within the specified distance"
+      example: "SELECT * FROM locations WHERE ST_DWithin(geom, ST_MakePoint(-71.1, 42.3)::geography, 1000)"
+      notes: "Much faster than ST_Distance < n for distance queries"
+      
+    - name: "ST_Contains"
+      description: "Returns true if geometry A contains geometry B"
+      example: "SELECT * FROM regions r, points p WHERE ST_Contains(r.geom, p.geom)"
+      
+    - name: "ST_Intersects"
+      description: "Returns true if the geometries spatially intersect"
+      example: "SELECT * FROM roads r, rivers v WHERE ST_Intersects(r.geom, v.geom)"
+      
+    - name: "ST_Within"
+      description: "Returns true if geometry A is completely inside geometry B"
+      example: "SELECT * FROM cities c, states s WHERE ST_Within(c.geom, s.geom)"
+      
+    - name: "ST_Area"
+      description: "Returns the area of a polygon geometry"
+      example: "SELECT ST_Area(geom) FROM polygons"
+      notes: "Returns area in square units of the SRID (or square meters for geography)"
+
+examples:
+  - name: "Find points within a radius"
+    query: |
+      SELECT 
+        name, 
+        ST_AsText(location) AS wkt_geom,
+        ST_Distance(location, ST_MakePoint(-71.064, 42.28)::geography) AS distance_meters
+      FROM 
+        places
+      WHERE 
+        ST_DWithin(
+          location,
+          ST_MakePoint(-71.064, 42.28)::geography,
+          1000
+        )
+      ORDER BY 
+        distance_meters
+    description: "Find all places within 1000 meters of the specified point and sort by distance"
+  
+  - name: "Calculate distance between two points"
+    query: |
+      SELECT 
+        ST_Distance(
+          ST_MakePoint(-73.935, 40.730)::geography,
+          ST_MakePoint(-74.006, 40.712)::geography
+        ) AS distance_meters
+    description: "Calculate the distance in meters between two GPS coordinates"
+    
+  - name: "Spatial join with a polygon"
+    query: |
+      SELECT 
+        c.name, 
+        c.population,
+        ST_Distance(c.geom, r.geom) AS distance_to_boundary
+      FROM 
+        cities c
+      JOIN 
+        regions r ON ST_Within(c.geom, r.geom)
+      WHERE 
+        r.name = 'California'
+      ORDER BY 
+        c.population DESC
+    description: "Find all cities within the California region boundary, ordered by population"
+    
+  - name: "Find nearest neighbors"
+    query: |
+      SELECT 
+        h.name AS hospital_name,
+        ST_Distance(h.geom, i.geom) AS distance
+      FROM 
+        hospitals h,
+        (SELECT geom FROM incidents WHERE id = 123) i
+      ORDER BY 
+        h.geom <-> i.geom
+      LIMIT 5
+    description: "Find the 5 closest hospitals to a specific incident using the <-> distance operator"
+    
+  - name: "Transform coordinates between projections"
+    query: |
+      SELECT 
+        ST_AsText(
+          ST_Transform(
+            ST_SetSRID(ST_MakePoint(-71.064, 42.28), 4326),
+            2249
+          )
+        ) AS transformed_point
+    description: "Transform WGS84 coordinates to Massachusetts state plane"
+    
+  - name: "Find intersection points"
+    query: |
+      SELECT 
+        r1.name AS road1,
+        r2.name AS road2,
+        ST_AsText(ST_Intersection(r1.geom, r2.geom)) AS intersection_point
+      FROM 
+        roads r1
+      JOIN 
+        roads r2 ON r1.id < r2.id
+      WHERE 
+        ST_Intersects(r1.geom, r2.geom)
+      LIMIT 10
+    description: "Find intersection points between different roads"
+    
+  - name: "Bounding box query"
+    query: |
+      SELECT 
+        name, 
+        ST_AsText(geom)
+      FROM 
+        points_of_interest
+      WHERE 
+        geom && ST_MakeEnvelope(
+          -74.01, 40.70,    -- Lower left corner (longitude, latitude)
+          -73.97, 40.73,    -- Upper right corner (longitude, latitude)
+          4326              -- SRID
+        )
+    description: "Find all points of interest within a geographic bounding box (very efficient)"
+    
+  - name: "Aggregation with spatial data"
+    query: |
+      SELECT 
+        county_name,
+        COUNT(*) AS num_businesses,
+        ST_Area(county_geom) / 1000000 AS area_sq_km,
+        COUNT(*) / (ST_Area(county_geom) / 1000000) AS business_density
+      FROM 
+        businesses b
+      JOIN 
+        counties c ON ST_Within(b.geom, c.geom)
+      WHERE 
+        b.type = 'restaurant'
+      GROUP BY 
+        county_name, county_geom
+      ORDER BY 
+        business_density DESC
+    description: "Calculate restaurant density per square kilometer for each county"
+    
+  - name: "Complex spatial analysis with CTE"
+    query: |
+      WITH 
+      buffer_zones AS (
+        SELECT 
+          s.id, 
+          s.name,
+          ST_Buffer(s.geom::geography, 5000)::geometry AS buffer_geom
+        FROM 
+          stores s
+        WHERE 
+          s.region = 'Northeast'
+      ),
+      population_in_zones AS (
+        SELECT 
+          b.id AS store_id,
+          b.name AS store_name,
+          SUM(c.population) AS total_population
+        FROM 
+          buffer_zones b
+        JOIN 
+          census_blocks c ON ST_Intersects(c.geom, b.buffer_geom)
+        GROUP BY 
+          b.id, b.name
+      )
+      SELECT 
+        store_id,
+        store_name,
+        total_population,
+        RANK() OVER (ORDER BY total_population DESC) AS population_rank
+      FROM 
+        population_in_zones
+      ORDER BY 
+        total_population DESC
+    description: "Find total population within 5km of each Northeast store and rank stores by population coverage"
+
+best_practices:
+  - "Use geography type (not geometry) when working with GPS coordinates and Earth distances in meters"
+  - "For better performance on distance queries, use ST_DWithin instead of ST_Distance < value"
+  - "The <-> operator (e.g., geom1 <-> geom2) is a distance operator that works with spatial indexes"
+  - "For large datasets, ensure spatial indexes are available on geometry/geography columns"
+  - "Use the && operator for bounding box queries, which is very efficient with spatial indexes"
+  - "For points in WGS84, remember that longitude comes before latitude in all PostGIS functions"
+  - "When working with different projections, make sure to use ST_Transform to convert between them"
+  - "For complex spatial analysis, use Common Table Expressions (WITH) to make queries more readable"
+  - "ST_Intersects is usually preferred over ST_Contains when checking for spatial relationships"
+  - "For high-precision Earth distance calculations, cast to geography type: geom::geography"

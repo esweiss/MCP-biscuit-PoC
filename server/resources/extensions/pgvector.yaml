@@ -1,0 +1,184 @@
+description: |
+  pgvector is a PostgreSQL extension for vector similarity search. It provides vector data types
+  and operators that enable storage and efficient querying of high-dimensional vector embeddings,
+  commonly used in machine learning applications, semantic search, and recommendation systems.
+
+data_types:
+  - name: "vector"
+    description: "Fixed-length array of float values, representing an embedding vector"
+    example: "embedding vector(1536)"
+    notes: "Dimensions are defined in the table schema"
+
+operators:
+  - symbol: "<->"
+    name: "Euclidean distance" 
+    description: "L2 distance between vectors. Lower values indicate more similar vectors."
+    example: "embedding <-> '[1,2,3]'::vector"
+    
+  - symbol: "<=>"
+    name: "Cosine distance"
+    description: "1 - cosine similarity. Lower values indicate more similar vectors."
+    example: "embedding <=> '[1,2,3]'::vector"
+    
+  - symbol: "<#>"
+    name: "Inner product distance" 
+    description: "Negative inner product. Lower values indicate more similar vectors."
+    example: "embedding <#> '[1,2,3]'::vector"
+    notes: "For actual inner product (dot product), use negative of this distance"
+
+functions:
+  - name: "vector_dims"
+    description: "Gets the dimension of a vector"
+    example: "SELECT vector_dims(embedding) FROM items LIMIT 1"
+    
+  - name: "vector_norm"
+    description: "Gets the L2 (Euclidean) norm of a vector"
+    example: "SELECT vector_norm(embedding) FROM items LIMIT 1"
+    
+  - name: "vector_avg"
+    description: "Aggregate function to average multiple vectors"
+    example: "SELECT vector_avg(embedding) FROM items WHERE category = 'electronics'"
+    
+  - name: "vector_add"
+    description: "Add two vectors together"
+    example: "SELECT vector_add(embedding1, embedding2) FROM item_pairs LIMIT 10"
+    
+  - name: "vector_subtract"
+    description: "Subtract second vector from first"
+    example: "SELECT vector_subtract(embedding1, embedding2) FROM item_pairs LIMIT 10"
+    
+  - name: "cosine_similarity"
+    description: "Calculate cosine similarity between vectors (not distance)"
+    example: "SELECT 1 - (embedding <=> '[1,2,3]'::vector) AS similarity FROM items LIMIT 5"
+    notes: "Computed as 1 minus the cosine distance"
+
+examples:
+  - name: "Basic vector similarity search"
+    query: |
+      SELECT id, title, embedding <=> '[0.3,0.2,0.1]'::vector AS distance
+      FROM documents
+      ORDER BY embedding <=> '[0.3,0.2,0.1]'::vector
+      LIMIT 5
+    description: "Find the 5 most similar documents to the query vector using cosine distance"
+  
+  - name: "Hybrid search with metadata filtering"
+    query: |
+      SELECT id, title, embedding <-> query_embedding AS distance
+      FROM documents, plainto_tsquery('english', 'database systems') query_text, 
+           '[0.3,0.2,0.1]'::vector query_embedding
+      WHERE search_text @@ query_text
+      ORDER BY embedding <-> query_embedding
+      LIMIT 10
+    description: "Combine full-text search with vector similarity to find the most relevant results"
+  
+  - name: "K-Nearest neighbors search"
+    query: |
+      SELECT id, title, embedding <-> '[0.9,0.8,0.7]'::vector AS distance
+      FROM products
+      ORDER BY embedding <-> '[0.9,0.8,0.7]'::vector
+      LIMIT 10
+    description: "Find the 10 nearest products in vector space to the query embedding"
+  
+  - name: "Vector similarity with pagination"
+    query: |
+      SELECT id, title, embedding <=> '[0.5,0.5,0.5]'::vector AS distance
+      FROM documents
+      ORDER BY embedding <=> '[0.5,0.5,0.5]'::vector
+      LIMIT 10 OFFSET 20
+    description: "Get the 3rd page of results (items 21-30) ordered by vector similarity"
+  
+  - name: "Filter by distance threshold"
+    query: |
+      SELECT id, title, 1 - (embedding <=> '[0.5,0.5,0.5]'::vector) AS similarity
+      FROM documents
+      WHERE embedding <=> '[0.5,0.5,0.5]'::vector < 0.2
+      ORDER BY embedding <=> '[0.5,0.5,0.5]'::vector
+    description: "Find documents with at least 80% cosine similarity to the query vector"
+  
+  - name: "Semantic deduplication with vector similarity"
+    query: |
+      SELECT a.id as id1, b.id as id2,
+             1 - (a.embedding <=> b.embedding) AS similarity
+      FROM documents a 
+      JOIN documents b ON a.id < b.id
+      WHERE a.embedding <=> b.embedding < 0.1
+      ORDER BY similarity DESC
+      LIMIT 100
+    description: "Find document pairs that are semantically similar (>90% cosine similarity)"
+    
+  - name: "Multi-vector query (concept combination)"
+    query: |
+      SELECT id, title,
+             (embedding <=> '[0.2,0.1,0.5]'::vector) * 0.7 + 
+             (embedding <=> '[0.8,0.3,0.1]'::vector) * 0.3 AS combined_score
+      FROM documents
+      ORDER BY combined_score
+      LIMIT 5
+    description: "Weighted combination of similarity to multiple concept vectors"
+
+  - name: "Vector operations with subquery"
+    query: |
+      SELECT 
+        p.id, 
+        p.name,
+        p.embedding <=> (
+          SELECT vector_avg(embedding)
+          FROM products
+          WHERE category = 'electronics' AND rating > 4.5
+        ) AS distance_to_avg_electronics
+      FROM products p
+      WHERE p.category = 'electronics'
+      ORDER BY distance_to_avg_electronics
+      LIMIT 10
+    description: "Find products most similar to the average vector of highly-rated electronics"
+
+  - name: "Group by with vector functions"
+    query: |
+      SELECT 
+        category,
+        vector_avg(embedding) AS category_avg_embedding,
+        COUNT(*) AS product_count
+      FROM products
+      GROUP BY category
+      HAVING COUNT(*) > 5
+    description: "Calculate average embedding vector for each product category with more than 5 products"
+    
+  - name: "Vector similarity with complex filtering"
+    query: |
+      WITH target_embedding AS (
+        SELECT embedding 
+        FROM products 
+        WHERE id = 123
+      )
+      SELECT 
+        p.id, 
+        p.name, 
+        p.embedding <-> t.embedding AS distance
+      FROM products p, target_embedding t
+      WHERE 
+        p.category = 'furniture' AND 
+        p.price BETWEEN 100 AND 500 AND
+        p.in_stock = true AND
+        p.embedding <-> t.embedding < 0.8
+      ORDER BY distance
+      LIMIT 20
+    description: "Find in-stock furniture products in a specific price range most similar to a reference product"
+
+  - name: "Negative example search (find items unlike a reference)"
+    query: |
+      SELECT id, name
+      FROM products
+      ORDER BY embedding <=> '[0.7,0.2,0.1]'::vector DESC
+      LIMIT 5
+    description: "Find products least similar to the reference vector by reversing the sort order"
+
+best_practices:
+  - "For optimal performance with vectors, include LIMIT in your ORDER BY to avoid sorting the entire result set"
+  - "When comparing a query vector to many vectors, use a parameter placeholder rather than hardcoding the vector"
+  - "Combine vector similarity with additional WHERE clauses for more precise results"
+  - "Use CTEs (WITH clauses) for complex queries involving vector operations for better readability"
+  - "When calculating cosine similarity (not distance), use the formula: 1 - (vector1 <=> vector2)"
+  - "For pagination with vector similarity, ensure you're using a consistent ordering with LIMIT and OFFSET"
+  - "In GROUP BY operations with vector functions, be aware of memory usage with large result sets"
+  - "For complex vector operations involving multiple tables, try to keep vector calculations in the ORDER BY clause indexed"
+  - "When using vector distance in a WHERE clause (like WHERE embedding <-> query < 0.5), be aware this may not use the vector index efficiently"
