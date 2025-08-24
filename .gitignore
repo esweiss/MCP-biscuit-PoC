@@ -1,5 +1,87 @@
+# OS files
 **/.DS_Store
+.DS_Store
+
+# Environment and secrets
 .env
+.env.local
+.env.production
+.env.staging
+
+# Python virtual environments
 .venv/
+venv/
+env/
+
+# Python bytecode and cache
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# mypy and type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Linting and formatting
+.ruff_cache/
+.pylint.d/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Application logs
 logs/
+*.log
+
+# UV lock files (comment out if you want to commit uv.lock)
+# uv.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/

@@ -12,6 +12,9 @@ import sys
 from datetime import datetime, timezone
 from typing import Dict, Any
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from biscuit_parser_module import BiscuitParser
 
 

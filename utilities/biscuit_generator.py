@@ -134,6 +134,37 @@ class BiscuitGenerator:
         else:
             keypair = biscuit.KeyPair()
             return keypair.public_key
+    
+    def create_custom_token(self, facts: List[str], rules: Optional[List[str]] = None, 
+                          checks: Optional[List[str]] = None) -> str:
+        """Create a biscuit token with custom facts, rules, and checks.
+        
+        Args:
+            facts: List of fact strings (e.g., ['user("alice")', 'role("admin")'])
+            rules: Optional list of rule strings (e.g., ['allow($u, $r, $o) <- user($u), resource($r), operation($o)'])
+            checks: Optional list of check strings (e.g., ['check if user("alice")'])
+            
+        Returns:
+            Base64-encoded biscuit token
+        """
+        builder = biscuit.BiscuitBuilder()
+        
+        # Add custom facts
+        for fact_str in facts:
+            builder.add_fact(biscuit.Fact(fact_str))
+        
+        # Add custom rules if provided
+        if rules:
+            for rule_str in rules:
+                builder.add_rule(biscuit.Rule(rule_str))
+        
+        # Add custom checks if provided
+        if checks:
+            for check_str in checks:
+                builder.add_check(biscuit.Check(check_str))
+        
+        token = builder.build(self.private_key)
+        return token.to_base64()
 
 
 def main():
@@ -141,7 +172,7 @@ def main():
     parser.add_argument("--user", required=True, help="User ID")
     parser.add_argument("--resource", required=True, help="Resource to access")
     parser.add_argument("--operation", default="read", help="Operation to perform")
-    parser.add_argument("--type", choices=["basic", "time-limited", "scoped", "hierarchical"], 
+    parser.add_argument("--type", choices=["basic", "time-limited", "scoped", "hierarchical", "custom"], 
                        default="basic", help="Type of token to generate")
     parser.add_argument("--expires-hours", type=int, default=24, 
                        help="Expiration time in hours (for time-limited tokens)")
@@ -152,6 +183,9 @@ def main():
     parser.add_argument("--private-key", help="Private key in hex format")
     parser.add_argument("--show-public-key", action="store_true", 
                        help="Show the public key for verification")
+    parser.add_argument("--facts", nargs="+", help="Custom facts for custom tokens (e.g., 'user(\"alice\")' 'role(\"admin\")')")
+    parser.add_argument("--rules", nargs="*", help="Custom rules for custom tokens (optional)")
+    parser.add_argument("--checks", nargs="*", help="Custom checks for custom tokens (optional)")
     
     args = parser.parse_args()
     
@@ -183,6 +217,14 @@ def main():
         token = generator.create_hierarchical_token(
             args.user, args.role, args.department, args.resource)
         print(f"Hierarchical Token: {token}")
+    
+    elif args.type == "custom":
+        if not args.facts:
+            print("Error: --facts is required for custom tokens")
+            return 1
+        token = generator.create_custom_token(
+            args.facts, args.rules, args.checks)
+        print(f"Custom Token: {token}")
     
     return 0
 
