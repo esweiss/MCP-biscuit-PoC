@@ -1,0 +1,14 @@
+-- Role: patients
+-- DROP ROLE IF EXISTS patients;
+
+CREATE ROLE patients WITH
+  LOGIN
+  NOSUPERUSER
+  INHERIT
+  NOCREATEDB
+  NOCREATEROLE
+  NOREPLICATION
+  NOBYPASSRLS
+  ENCRYPTED PASSWORD 'SCRAM-SHA-256$4096:9vhtNRPG/hXxcbHKhcn7pw==$kkRjWe3U+e77jSwWBOqVgvPrHBEufFmC12le++as31M=:b8jDKqk9KKHDSGTXpK+4RxlHEUfeulmYxeW2YyZJ9co=';
+
+COMMENT ON ROLE patients IS 'Role for getting data for patients';
