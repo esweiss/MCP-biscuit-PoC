@@ -45,34 +45,7 @@ PostgreSQL Database (RLS Policies)
 - uv package manager
 
 ### Setup
-```bash
-git clone https://github.com/esweiss/MCP-biscuit-PoC.git
-cd MCP-biscuit-PoC
-uv sync
-```
-
-### Configure Database
-Follow the database setup instructions in [SCRIPT.md](SCRIPT.md#step-3-configure-the-database)
-
-### Generate Biscuit Token
-```bash
-uv run python utilities/biscuit_generator.py \
-  --type custom \
-  --user patient \
-  --resource medical \
-  --facts 'patient_name("Erin oRTEga")' \
-  --show-public-key
-```
-
-### Start Server
-```bash
-PYTHONPATH=. uv run python server/app.py
-```
-
-### Test Authorization
-```bash
-uv run python example-clients/claude_cli.py "Show me all database records for user Erin oRTEga"
-```
+Follow the setup instructions in [SCRIPT.md]
 
 ## 📁 Project Structure
 
