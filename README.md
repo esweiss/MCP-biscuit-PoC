@@ -1,40 +1,51 @@
 # MCP Biscuit Security Proof of Concept
 
-A demonstration of cryptographic authorization using **Biscuit tokens** with **Model Context Protocol (MCP)** servers and **PostgreSQL Row-Level Security**.
+A demonstration of **enhanced cryptographic authorization** using **Biscuit tokens** with **mTLS client certificates**, **Model Context Protocol (MCP)** servers, and **PostgreSQL Row-Level Security**.
 
 ## 🎯 What This Demonstrates
 
-This proof of concept shows how **Biscuit tokens** can provide fine-grained, cryptographically secure authorization for database access through an MCP server. Unlike traditional bearer tokens, Biscuit tokens contain embedded authorization logic that can be verified without server-side state.
+This proof of concept shows how **Biscuit tokens** combined with **mTLS client certificates** can provide enterprise-grade, cryptographically secure authorization for database access through MCP servers. Unlike traditional bearer tokens, this enhanced security model provides 4 layers of defense with transport security, token cryptography, database privileges, and row-level filtering.
 
 ### Key Features
 
-- 🔐 **Cryptographic Authorization**: Biscuit tokens with embedded facts and rules
-- 🛡️ **Multi-layered Security**: Token verification + PostgreSQL Row-Level Security  
-- 🤖 **AI Integration**: Natural language queries via Claude API
-- 📊 **Healthcare Demo**: Patient data access control scenario
-- 🔍 **Token Analysis**: Tools to inspect and verify token contents
+- 🔐 **Enhanced mTLS + Biscuit Security**: 4-layer defense-in-depth architecture
+- 🛡️ **Client Certificate Validation**: Identity-based access control with mTLS
+- 🤖 **Interactive Text-to-SQL**: Natural language queries via Claude API integration
+- 📊 **Healthcare Demo**: Simulated patient data access control scenario
+- 🔍 **Comprehensive Testing**: Automated and manual security validation
 
-## 🏗️ Architecture
+## 🏗️ Enhanced Security Architecture
 
 ```
-Client Request + Biscuit Token
+Client + mTLS Certificate + Enhanced Biscuit Token
          ↓
-    MCP Server (FastMCP)
+   mTLS Transport Security
          ↓
- Token Verification & Fact Extraction
+    Custom mTLS HTTP Server
+         ↓
+Client Certificate + Token Verification
+         ↓
+    MCP Server Integration
          ↓
 PostgreSQL Database (RLS Policies)
          ↓
   Filtered Results Based on Token Facts
 ```
 
+### 4-Layer Security Model
+
+1. **mTLS Transport Layer**: Client certificate authentication and identity verification
+2. **Cryptographic Token Layer**: Biscuit token signature verification and attestation validation
+3. **Database Privilege Layer**: PostgreSQL user privileges and access controls
+4. **Row-Level Security Layer**: Fine-grained data filtering based on token facts
+
 ### Components
 
-- **Biscuit Token Generator**: Creates tokens with custom facts/rules/checks
-- **MCP Server**: FastMCP-based server with database tools and AI prompts
-- **Token Parser**: Cryptographic verification and fact extraction
+- **Enhanced Biscuit Generator**: Creates tokens with mTLS attestation blocks
+- **Custom mTLS Server**: Direct SSL certificate access with identity-based authorization
+- **mTLS + Biscuit Validator**: Dual-layer security verification system
 - **PostgreSQL Integration**: Row-Level Security policies for fine-grained access
-- **Claude Integration**: Natural language to SQL query generation
+- **Interactive Demo**: Text-to-SQL with Claude API integration
 
 ## 🚀 Quick Start
 
@@ -51,107 +62,160 @@ Follow the setup instructions in [SCRIPT.md]
 
 ```
 MCP-biscuit-PoC/
-├── 📄 README.md                 # This file
-├── 📄 SCRIPT.md                 # Step-by-step setup guide  
-├── 📄 SECURITY.md               # Technical security deep dive
-├── 🔧 pyproject.toml            # Python dependencies
-├── 🔐 biscuit_parser_module.py  # Core biscuit token operations
-├── 🛠️ utilities/                # Token generation and parsing tools
-├── 🖥️ server/                   # MCP server implementation  
-├── 👥 example-clients/          # Demo client applications
-└── 💾 database/                 # Database setup scripts
+├── 📄 README.md                     # Project overview (this file)
+├── 📄 SCRIPT.md                     # Step-by-step setup guide  
+├── 📄 SECURITY.md                   # Technical security deep dive
+├── 📄 PART3_TESTING_GUIDE.md        # Manual testing procedures
+├── 📄 MTLS_IMPLEMENTATION.md        # mTLS technical documentation
+├── 🔧 pyproject.toml                # Python dependencies
+├── 🔐 biscuit_parser_module.py      # Core biscuit token operations
+├── 🛠️ utilities/                    # Token generation and parsing tools
+├── 🖥️ server/                       # mTLS server and MCP implementation  
+├── 🔒 certs/                        # Certificate Authority and mTLS certificates
+├── 👥 example-clients/              # Demo client applications
+├── 🧪 test_*.py                     # Comprehensive security test suite
+├── 🎯 demo_enhanced_security.py     # Interactive mTLS + Biscuit demo
+└── 💾 database/                     # Database setup scripts
 ```
 
 ### Key Files
 
-- **`biscuit_parser_module.py`**: Core Biscuit token parsing and verification
-- **`utilities/biscuit_generator.py`**: Flexible token generation with custom facts
-- **`server/app.py`**: Main MCP server with database tools and AI integration
-- **`server/tools/query.py`**: Database query execution with token authentication
-- **`example-clients/claude_cli.py`**: Demo client using Claude for natural language queries
+- **`biscuit_parser_module.py`**: Core Biscuit token parsing and mTLS validation
+- **`utilities/biscuit_generator.py`**: Enhanced token generation with mTLS attestation
+- **`server/custom_mtls_server.py`**: Custom mTLS HTTP server with certificate validation
+- **`server/tools/query.py`**: Database query execution with dual authentication
+- **`demo_enhanced_security.py`**: Interactive demo with text-to-SQL capabilities
+- **`test_enhanced_mtls_biscuit.py`**: Comprehensive automated security testing
 
-## 🔐 Security Model
+## 🔐 Enhanced Security Model
 
-### Biscuit Token Structure
+### Enhanced Biscuit Token Structure
 ```
-Token = {
-    Facts: [patient_name("Erin oRTEga")],
+Enhanced Token = {
+    Original Facts: [patient_name("Erin oRTEga")],
+    mTLS Attestation: [
+        mtls_client("claude-client"),
+        mtls_audience("mcp-server"),  
+        attestation_time(1234567890)
+    ],
     Rules: [allow($user, $resource, $operation) <- ...],
-    Checks: [check if user("alice")],
+    Checks: [
+        check if user("alice"),
+        check if mtls_client("claude-client"),
+        check if mtls_audience("mcp-server")
+    ],
     Signature: cryptographic_signature
 }
 ```
 
-### Defense in Depth
-1. **Cryptographic Verification**: Tokens are signed and tamper-proof
-2. **Database User Privileges**: Restricted database accounts limit capabilities  
-3. **Row-Level Security**: PostgreSQL policies filter data based on token context
-4. **Read-Only Transactions**: All queries executed in read-only mode
+### 4-Layer Defense in Depth
+1. **mTLS Transport Security**: Client certificate authentication prevents unauthorized network access
+2. **Cryptographic Token Verification**: Biscuit signatures prevent token tampering and ensure authenticity
+3. **Database User Privileges**: Restricted PostgreSQL accounts limit system capabilities  
+4. **Row-Level Security**: PostgreSQL policies filter data based on verified token context
 
-### Authorization Flow
-1. Client sends query + Biscuit token
-2. MCP server verifies token cryptographically 
-3. Token facts extracted and applied as PostgreSQL session parameters
-4. Database RLS policies filter results based on session context
-5. Only authorized data returned to client
+### Enhanced Authorization Flow
+1. Client connects with mTLS certificate + Enhanced Biscuit token
+2. Server validates client certificate identity (transport layer)
+3. Server verifies Biscuit token cryptographically (token layer)
+4. Server validates mTLS attestation matches actual client identity (attestation layer)
+5. Token facts extracted and applied as PostgreSQL session parameters (database layer)
+6. Database RLS policies filter results based on verified session context
+7. Only multiply-authorized data returned to client
 
-## 🧪 Testing Scenarios
+## 🧪 Enhanced Testing Scenarios
 
-### ✅ Authorized Access
+### 🎯 Interactive Demo
 ```bash
-# Token contains: patient_name("Erin oRTEga")
-# Query returns: Records for Erin oRTEga only
-uv run python example-clients/claude_cli.py "Show me records for Erin oRTEga"
+# Start interactive text-to-SQL demo with mTLS + Biscuit validation
+uv run python demo_enhanced_security.py
 ```
 
-### ❌ Privilege Escalation Prevention  
+### ✅ Authorized Access (mTLS + Valid Token)
 ```bash
-# Same token, different patient requested
-# With RLS: Only returns Erin's data (ignores query for David)
-# Without RLS: Returns all David's records
-uv run python example-clients/claude_cli.py "Show me records for DAvID AndErSON" 
+# Client with valid certificate + token containing patient_name("Erin oRTEga")
+# Result: Returns records for Erin oRTEga only after dual verification
+uv run python test_enhanced_mtls_biscuit.py
 ```
 
-### 🔍 Token Analysis
+### ❌ Security Boundary Testing
 ```bash
-# Inspect token contents and verify signature
+# Test wrong client identity (certificate mismatch)
+uv run python test_wrong_client_identity.py
+
+# Test wrong server audience (targeting wrong server) 
+uv run python test_wrong_audience.py
+
+# Test unauthorized user (valid mTLS but wrong user token)
+uv run python test_wrong_user_identity.py
+
+# Run comprehensive security test suite
+uv run python run_all_security_tests.py
+```
+
+### 🔍 Enhanced Token Analysis
+```bash
+# Inspect enhanced token with mTLS attestation
 uv run python utilities/biscuit_parser_cli.py TOKEN --public-key KEY --analyze
+```
+
+### 🖥️ Server Testing
+```bash
+# Start mTLS server with certificate validation
+PYTHONPATH=. uv run python server/custom_mtls_server.py
+
+# Test server endpoints with curl (requires client certificate)
+curl -k --cert certs/claude-client-cert.pem --key certs/claude-client-key.pem \
+     https://localhost:8443/health
 ```
 
 ## 📚 Documentation
 
 - **[SCRIPT.md](SCRIPT.md)**: Complete setup guide with step-by-step instructions
 - **[SECURITY.md](SECURITY.md)**: Technical deep dive into the security architecture
+- **[MTLS_IMPLEMENTATION.md](MTLS_IMPLEMENTATION.md)**: mTLS technical documentation and architecture
+- **[PART3_TESTING_GUIDE.md](PART3_TESTING_GUIDE.md)**: Manual testing procedures and validation
 - **Code Comments**: Inline documentation throughout the codebase
 
 ## 🎓 Educational Value
 
 This PoC demonstrates several important concepts:
 
-- **Modern Authorization**: Moving beyond simple bearer tokens to rich, embedded authorization logic
-- **Cryptographic Security**: Using digital signatures for tamper-proof authorization
-- **Zero-Trust Architecture**: Tokens contain all necessary authorization context
-- **Database Security**: Integrating application-layer tokens with database-native security
-- **AI Security**: Securing AI-powered database queries with fine-grained access control
+- **Enhanced Authorization**: Combining mTLS certificates with cryptographic tokens for multi-layer security
+- **Defense-in-Depth Security**: 4 independent security layers that must all validate successfully
+- **Zero-Trust Architecture**: Never trust, always verify at transport, token, database, and row levels
+- **Certificate-Based Identity**: Using client certificates for cryptographically-verified identity
+- **Cryptographic Attestation**: Tokens that prove specific client-server relationships
+- **Database Security Integration**: Seamlessly combining application tokens with database-native security
+- **AI Security**: Securing AI-powered natural language database queries with comprehensive access control
 
 ## 🛠️ Extending the Demo
 
-### Add Time-Based Expiration
+### Enhanced mTLS Clients
+```python
+# Add new authorized client certificates
+./certs/create-client-cert.sh new-client-name
+# Update server/tls_config.py authorized_clients list
+```
+
+### Time-Based Token Expiration
 ```python
 facts = ['patient_name("Erin oRTEga")', f'expiry({int(expiry.timestamp())})']
 checks = ['check if time($time), expiry($exp), $time <= $exp']
 ```
 
-### Role-Based Access Control
+### Role-Based Access Control with mTLS
 ```python
-facts = ['user("alice")', 'role("nurse")', 'department("cardiology")']  
+facts = ['user("alice")', 'role("nurse")', 'department("cardiology")',
+         'mtls_client("nurse-workstation")', 'mtls_audience("mcp-server")']  
 rules = ['allow($u, $r, "read") <- user($u), role("nurse"), resource($r)']
 ```
 
-### Resource Scoping
+### Multi-Client Scenarios
 ```python
-facts = ['resource("patient_records")', 'operation("read")']
-checks = ['check if resource("patient_records")', 'check if operation("read")']
+# Different client identities for testing
+workstation_token = generator.add_mtls_attestation_block(token, "workstation-1", "mcp-server")
+mobile_token = generator.add_mtls_attestation_block(token, "mobile-client", "mcp-server")
 ```
 
 ## 🤝 Contributing
@@ -168,6 +232,6 @@ See [LICENSE](LICENSE) file for details.
 
 ---
 
-**Built with**: Python 3.13, FastMCP, PostgreSQL, Biscuit-auth, Anthropic Claude API
+**Built with**: Python 3.13, FastMCP, PostgreSQL, Biscuit-python, Anthropic Claude API
 
-**Demonstrates**: Cryptographic authorization, Row-level security, AI-powered database queries, Zero-trust architecture
+**Demonstrates**: Enhanced mTLS + Biscuit security, Row-level security, Defense-in-depth architecture, Certificate-based identity, AI-powered secure database access
