@@ -17,6 +17,11 @@ class BiscuitGenerator:
     def __init__(self, private_key: Optional[str] = None):
         if private_key:
             self.private_key = biscuit.PrivateKey.from_hex(private_key)
+            # Create a keypair to get the corresponding public key
+            self.keypair = biscuit.KeyPair()
+            # We'll need to derive the public key from the private key
+            # For now, store the hex for later derivation
+            self._private_key_hex = private_key
         else:
             self.keypair = biscuit.KeyPair()
             self.private_key = self.keypair.private_key
@@ -165,6 +170,98 @@ class BiscuitGenerator:
         
         token = builder.build(self.private_key)
         return token.to_base64()
+    
+    def add_mtls_attestation_block(self, token_b64: str, client_identity: str, 
+                                   server_audience: str, additional_facts: Optional[List[str]] = None,
+                                   public_key_hex: Optional[str] = None) -> str:
+        """Add an mTLS attestation block to an existing Biscuit token.
+        
+        WORKAROUND: Due to limitations in fact querying across multiple blocks in biscuit-python,
+        this method recreates the token with all facts in a single block to ensure proper
+        fact extraction by the BiscuitParser.
+        
+        Args:
+            token_b64: Base64-encoded existing Biscuit token
+            client_identity: Client's mTLS certificate Common Name
+            server_audience: Server's mTLS certificate Common Name (audience)
+            additional_facts: Optional additional facts for the block
+            public_key_hex: Public key for token verification (not used in current implementation)
+            
+        Returns:
+            Base64-encoded Biscuit token with mTLS attestation facts included
+        """
+        try:
+            # Parse the existing token to extract its facts
+            if public_key_hex:
+                public_key = biscuit.PublicKey.from_hex(public_key_hex)
+            elif hasattr(self, 'keypair'):
+                public_key = self.keypair.public_key
+            else:
+                import os
+                env_public_key = os.getenv('BISCUIT_PUBLIC_KEY')
+                if env_public_key:
+                    public_key = biscuit.PublicKey.from_hex(env_public_key)
+                else:
+                    raise Exception("No public key available for token verification")
+            
+            # Verify the existing token and extract facts
+            verified_token = biscuit.Biscuit.from_base64(token_b64, public_key)
+            
+            import time
+            authorizer = biscuit.Authorizer(f'time({int(time.time())});')
+            authorizer.add_token(verified_token)
+            
+            # Extract existing facts
+            existing_facts = []
+            
+            # Extract common fact types
+            fact_queries = [
+                ('user', 'data($u) <- user($u)'),
+                ('resource', 'data($r) <- resource($r)'),
+                ('operation', 'data($o) <- operation($o)'),
+                ('role', 'data($role) <- role($role)'),
+                ('patient_name', 'data($name) <- patient_name($name)'),
+                ('database_access', 'data($db) <- database_access($db)'),
+            ]
+            
+            for fact_type, query in fact_queries:
+                try:
+                    results = authorizer.query(biscuit.Rule(query))
+                    for result in results:
+                        if hasattr(result, 'data') and len(result.data) > 0:
+                            value = result.data[0]
+                            existing_facts.append(f'{fact_type}("{value}")')
+                except:
+                    pass  # Skip facts that don't exist
+            
+            # Create new token with all facts (existing + mTLS) in single block
+            all_facts = existing_facts.copy()
+            
+            # Add mTLS attestation facts
+            all_facts.append(f'mtls_client("{client_identity}")')
+            all_facts.append(f'mtls_audience("{server_audience}")')
+            
+            # Add timestamp when attestation was created
+            attestation_time = int(time.time())
+            all_facts.append(f'attestation_time({attestation_time})')
+            
+            # Add additional facts if provided
+            if additional_facts:
+                all_facts.extend(additional_facts)
+            
+            # Create checks for mTLS attestation
+            checks = [
+                f'check if mtls_client("{client_identity}")',
+                f'check if mtls_audience("{server_audience}")'
+            ]
+            
+            # Create new single-block token with all facts
+            new_token = self.create_custom_token(all_facts, checks=checks)
+            
+            return new_token
+            
+        except Exception as e:
+            raise Exception(f"Failed to add mTLS attestation facts: {str(e)}")
 
 
 def main():
