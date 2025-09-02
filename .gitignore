@@ -85,3 +85,7 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# Claude Code project memory files
+CLAUDE.md
+CLAUDE.local.md
