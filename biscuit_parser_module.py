@@ -333,6 +333,8 @@ class BiscuitParser:
                 facts["expiry"] = authorizer.query(biscuit.Rule('data($exp) <- expiry($exp)'))
                 facts["allow"] = authorizer.query(biscuit.Rule('data($u, $r, $o) <- allow($u, $r, $o)'))
                 facts["time"] = authorizer.query(biscuit.Rule('data($t) <- time($t)'))
+                # Add patient_name fact query for RLS support
+                facts["patient_names"] = authorizer.query(biscuit.Rule('data($name) <- patient_name($name)'))
                 # Add mTLS-specific fact queries
                 facts["mtls_clients"] = authorizer.query(biscuit.Rule('data($client) <- mtls_client($client)'))
                 facts["mtls_audiences"] = authorizer.query(biscuit.Rule('data($audience) <- mtls_audience($audience)'))

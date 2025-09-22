@@ -7,4 +7,4 @@ CREATE POLICY patient_data_policy
     AS PERMISSIVE
     FOR ALL
     TO patients
-    USING ((("Patient Name")::text = current_setting('patient_name'::text)));
+    USING ((("Patient Name")::text = current_setting('app.patient_name'::text, true)));

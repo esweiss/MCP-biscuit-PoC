@@ -38,9 +38,25 @@ async def execute_query(query: str, conn_id: str, params=None, facts=None, ctx=C
     logger.info(f"\n facts = {facts}")
     
     async with db.get_connection(conn_id) as conn:
+        # Apply biscuit token facts as session parameters for Row-Level Security
+        if facts and 'facts' in facts:
+            logger.info(f"Applying token facts to session: {facts['facts']}")
+            for fact_type, fact_list in facts['facts'].items():
+                if fact_type == 'patient_names' and fact_list:
+                    # Extract patient name from biscuit token facts
+                    # fact_list contains fact objects with .terms[0] containing the value
+                    if hasattr(fact_list[0], 'terms') and fact_list[0].terms:
+                        patient_name = fact_list[0].terms[0]
+                    else:
+                        # Fallback for string representation
+                        patient_name = str(fact_list[0])
+
+                    logger.info(f"Setting app.patient_name session parameter: {patient_name}")
+                    await conn.execute(f"SET app.patient_name = '{patient_name}'")
+
         # Ensure we're in read-only mode
         await conn.execute("SET TRANSACTION READ ONLY")
-        
+
         # Execute the query
         try:
             records = await conn.fetch(query, *(params or []))
