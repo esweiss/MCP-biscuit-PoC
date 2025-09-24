@@ -86,6 +86,15 @@ logs/
 tmp/
 temp/
 
+# Local development files
+local/
+
 # Claude Code project memory files
 CLAUDE.md
 CLAUDE.local.md
+
+# Manual demo guide (contains step-by-step commands)
+MANUAL_DEMO_GUIDE.md
+
+# Demo-related documentation
+DEMO_MAGIC_README.md

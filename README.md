@@ -63,29 +63,28 @@ Follow the setup instructions in [SCRIPT.md]
 ```
 MCP-biscuit-PoC/
 ├── 📄 README.md                     # Project overview (this file)
-├── 📄 SCRIPT.md                     # Step-by-step setup guide  
+├── 📄 SCRIPT.md                     # Step-by-step setup guide
 ├── 📄 SECURITY.md                   # Technical security deep dive
-├── 📄 PART3_TESTING_GUIDE.md        # Manual testing procedures
 ├── 📄 MTLS_IMPLEMENTATION.md        # mTLS technical documentation
+├── 🎭 demo_magic_security.sh        # Main demo script for presentations
 ├── 🔧 pyproject.toml                # Python dependencies
 ├── 🔐 biscuit_parser_module.py      # Core biscuit token operations
 ├── 🛠️ utilities/                    # Token generation and parsing tools
-├── 🖥️ server/                       # mTLS server and MCP implementation  
+├── 🖥️ server/                       # MCP server, mTLS proxy and implementation
 ├── 🔒 certs/                        # Certificate Authority and mTLS certificates
 ├── 👥 example-clients/              # Demo client applications
-├── 🧪 test_*.py                     # Comprehensive security test suite
-├── 🎯 demo_enhanced_security.py     # Interactive mTLS + Biscuit demo
 └── 💾 database/                     # Database setup scripts
 ```
 
 ### Key Files
 
-- **`biscuit_parser_module.py`**: Core Biscuit token parsing and mTLS validation
-- **`utilities/biscuit_generator.py`**: Enhanced token generation with mTLS attestation
-- **`server/custom_mtls_server.py`**: Custom mTLS HTTP server with certificate validation
-- **`server/tools/query.py`**: Database query execution with dual authentication
-- **`demo_enhanced_security.py`**: Interactive demo with text-to-SQL capabilities
-- **`test_enhanced_mtls_biscuit.py`**: Comprehensive automated security testing
+- **`demo_magic_security.sh`**: Main interactive demo script for presentations
+- **`biscuit_parser_module.py`**: Core Biscuit token parsing and validation
+- **`utilities/biscuit_generator.py`**: Token generation with custom facts and rules
+- **`server/app.py`**: Main MCP server with PostgreSQL integration
+- **`server/mtls_proxy.py`**: mTLS proxy server for secure transport
+- **`server/tools/query.py`**: Database query execution with Biscuit token authentication
+- **`example-clients/claude_cli_tls.py`**: TLS-enabled MCP client with Claude API
 
 ## 🔐 Enhanced Security Model
 
@@ -125,48 +124,38 @@ Enhanced Token = {
 
 ## 🧪 Enhanced Testing Scenarios
 
-### 🎯 Interactive Demo
+### 🎯 Main Demo
 ```bash
-# Start interactive text-to-SQL demo with mTLS + Biscuit validation
-uv run python demo_enhanced_security.py
+# Start the comprehensive interactive security demo
+./demo_magic_security.sh
 ```
 
-### ✅ Authorized Access (mTLS + Valid Token)
+### ✅ Individual Testing
 ```bash
-# Client with valid certificate + token containing patient_name("Erin oRTEga")
-# Result: Returns records for Erin oRTEga only after dual verification
-uv run python test_enhanced_mtls_biscuit.py
+# Test authorized access with Biscuit tokens
+uv run python example-clients/claude_cli.py "Show me all medical records for patient Erin oRTEga"
+
+# Test with TLS-enabled client
+uv run python example-clients/claude_cli_tls.py "Show me all medical records for patient Erin oRTEga"
 ```
 
-### ❌ Security Boundary Testing
+### 🔍 Token Analysis
 ```bash
-# Test wrong client identity (certificate mismatch)
-uv run python test_wrong_client_identity.py
-
-# Test wrong server audience (targeting wrong server) 
-uv run python test_wrong_audience.py
-
-# Test unauthorized user (valid mTLS but wrong user token)
-uv run python test_wrong_user_identity.py
-
-# Run comprehensive security test suite
-uv run python run_all_security_tests.py
-```
-
-### 🔍 Enhanced Token Analysis
-```bash
-# Inspect enhanced token with mTLS attestation
+# Inspect Biscuit tokens and their facts
 uv run python utilities/biscuit_parser_cli.py TOKEN --public-key KEY --analyze
 ```
 
 ### 🖥️ Server Testing
 ```bash
-# Start mTLS server with certificate validation
-PYTHONPATH=. uv run python server/custom_mtls_server.py
+# Start the MCP server
+PYTHONPATH=. uv run python server/app.py
+
+# Start the mTLS proxy server
+PYTHONPATH=. uv run python server/mtls_proxy.py
 
 # Test server endpoints with curl (requires client certificate)
 curl -k --cert certs/claude-client-cert.pem --key certs/claude-client-key.pem \
-     https://localhost:8443/health
+     https://localhost:8443/sse
 ```
 
 ## 📚 Documentation
