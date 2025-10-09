@@ -28,30 +28,33 @@ class TLSConfig:
             "authorized-client",
         ]
     
-    def create_ssl_context(self) -> ssl.SSLContext:
+    def create_ssl_context(self, require_client_cert: bool = True) -> ssl.SSLContext:
         """Create SSL context for mTLS server."""
         try:
             # Create SSL context for server
             context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            
+
             # Load server certificate and key
             server_cert = self.cert_dir / "server-cert.pem"
             server_key = self.cert_dir / "server-key.pem"
-            
+
             if not server_cert.exists() or not server_key.exists():
                 raise FileNotFoundError(f"Server certificate files not found in {self.cert_dir}")
-            
+
             context.load_cert_chain(str(server_cert), str(server_key))
-            
+
             # Load CA certificate for client verification
             ca_cert = self.cert_dir / "ca-cert.pem"
             if not ca_cert.exists():
                 raise FileNotFoundError(f"CA certificate not found: {ca_cert}")
-            
+
             context.load_verify_locations(str(ca_cert))
-            
-            # Require client certificates
-            context.verify_mode = ssl.CERT_REQUIRED
+
+            # Set client certificate verification mode
+            if require_client_cert:
+                context.verify_mode = ssl.CERT_REQUIRED
+            else:
+                context.verify_mode = ssl.CERT_OPTIONAL
             
             # Set up client certificate verification callback
             context.check_hostname = False  # We'll verify manually
@@ -105,11 +108,41 @@ class TLSConfig:
         try:
             import cryptography.x509
             from cryptography.x509.oid import NameOID
-            
+
             cert = cryptography.x509.load_der_x509_certificate(peercert_der)
             common_name = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
             return common_name
-            
+
         except Exception as e:
             logger.error(f"Error extracting client identity: {e}")
             return None
+
+    def extract_client_identity(self, ssl_object) -> Optional[str]:
+        """Extract client identity from SSL object for proxy use."""
+        try:
+            # Get the peer certificate
+            cert_dict = ssl_object.getpeercert()
+            if not cert_dict:
+                logger.error("No peer certificate found")
+                return None
+
+            # Extract common name from subject
+            subject = cert_dict.get('subject', [])
+            for component in subject:
+                for key, value in component:
+                    if key == 'commonName':
+                        logger.info(f"Extracted client identity: {value}")
+                        return value
+
+            logger.error("No common name found in certificate")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error extracting client identity from SSL object: {e}")
+            return None
+
+    def is_client_authorized(self, client_identity: str) -> bool:
+        """Check if client identity is in authorized list."""
+        if not client_identity:
+            return False
+        return client_identity in self.authorized_clients

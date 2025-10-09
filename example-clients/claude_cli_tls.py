@@ -156,21 +156,29 @@ async def main():
     
     try:
         # Create TLS configuration for client
-        client_tls = ClientTLS(cert_dir="../certs", client_name="claude-client")
+        client_tls = ClientTLS(cert_dir="certs", client_name="claude-client")
         ssl_context = client_tls.create_ssl_context()
-        
-        print(f"Connecting to MCP server at {pg_mcp_url} with mTLS...")
-        
-        # We need to patch the SSE client to use our custom SSL context
-        # For now, let's disable SSL verification (demo purposes only)
-        import ssl
-        ssl_context_no_verify = ssl.create_default_context()
-        ssl_context_no_verify.check_hostname = False
-        ssl_context_no_verify.verify_mode = ssl.CERT_NONE
-        
+
+        print(f"Connecting to MCP server at {pg_mcp_url} with mTLS using HTTP transport...")
+
+        # Create custom httpx client factory with our SSL context
+        import httpx
+        from mcp.shared._httpx_utils import create_mcp_http_client
+
+        def create_mtls_http_client(headers=None, timeout=None, auth=None):
+            """Create httpx client with mTLS certificates."""
+            return httpx.AsyncClient(
+                verify="certs/ca-cert.pem",  # CA certificate for server verification
+                cert=("certs/claude-client-cert.pem", "certs/claude-client-key.pem"),  # Client certificate
+                headers=headers,
+                timeout=timeout or httpx.Timeout(30.0),
+                auth=auth,
+                follow_redirects=True
+            )
+
         # Create the SSE client context manager with TLS
-        async with sse_client(url=pg_mcp_url) as streams:
-            print("TLS SSE streams established, creating session...")
+        async with sse_client(url=pg_mcp_url, httpx_client_factory=create_mtls_http_client) as streams:
+            print("TLS HTTP streams established, creating session...")
             
             # Create and initialize the MCP ClientSession
             async with ClientSession(*streams) as session:
