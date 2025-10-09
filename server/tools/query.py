@@ -38,21 +38,51 @@ async def execute_query(query: str, conn_id: str, params=None, facts=None, ctx=C
     logger.info(f"\n facts = {facts}")
     
     async with db.get_connection(conn_id) as conn:
-        # Apply biscuit token facts as session parameters for Row-Level Security
-        if facts and 'facts' in facts:
-            logger.info(f"Applying token facts to session: {facts['facts']}")
-            for fact_type, fact_list in facts['facts'].items():
-                if fact_type == 'patient_names' and fact_list:
-                    # Extract patient name from biscuit token facts
-                    # fact_list contains fact objects with .terms[0] containing the value
-                    if hasattr(fact_list[0], 'terms') and fact_list[0].terms:
-                        patient_name = fact_list[0].terms[0]
-                    else:
-                        # Fallback for string representation
-                        patient_name = str(fact_list[0])
+        # Set session parameters for Row-Level Security
+        logger.info(f"Biscuit token verification status: {facts.get('status') if facts else 'No token'}")
 
-                    logger.info(f"Setting app.patient_name session parameter: {patient_name}")
+        # For RLS to work, we must extract the patient_name from the token
+        # If no valid token or no patient name in token, RLS should block all access
+        patient_name = None
+
+        if facts and facts.get('status') in ['verified', 'verified_with_facts'] and 'facts' in facts:
+            logger.info(f"Token verified, extracting patient name from facts")
+            patient_names_facts = facts['facts'].get('patient_names', [])
+            if patient_names_facts:
+                # Extract from first fact if available
+                if hasattr(patient_names_facts[0], 'terms') and patient_names_facts[0].terms:
+                    patient_name = patient_names_facts[0].terms[0]
+                    logger.info(f"Extracted patient name from token: {patient_name}")
+                else:
+                    patient_name = str(patient_names_facts[0])
+                    logger.info(f"Using string representation: {patient_name}")
+            else:
+                logger.warning("Token verified but no patient_names facts found")
+        else:
+            logger.warning("No valid token provided or token verification failed")
+
+        # Only set session parameter if we have a valid patient name from token
+        if patient_name:
+            logger.info(f"Setting session parameter for RLS: {patient_name}")
+            try:
+                # Set app.patient_name as expected by the RLS policy
+                # Use the 3rd parameter = false to set for the current session only
+                await conn.execute("SELECT set_config('app.patient_name', $1, false)", patient_name)
+                logger.info("Successfully set app.patient_name session parameter")
+            except Exception as e:
+                logger.error(f"Could not set session parameter: {e}")
+                # If the custom parameter doesn't exist, let's create it by setting it
+                try:
+                    # This should work even if the parameter isn't pre-defined
+                    logger.info("Attempting to set parameter using direct assignment")
                     await conn.execute(f"SET app.patient_name = '{patient_name}'")
+                    logger.info("Successfully set app.patient_name using SET")
+                except Exception as e2:
+                    logger.error(f"Both set_config and SET failed: {e2}")
+                    raise Exception(f"Failed to set RLS parameter: {e2}")
+        else:
+            logger.warning("No patient name available - RLS will block all access")
+            # Don't set any parameter - this will cause RLS to block access as expected
 
         # Ensure we're in read-only mode
         await conn.execute("SET TRANSACTION READ ONLY")
@@ -92,22 +122,71 @@ def register_query_tools():
     async def pg_query(biscuit_token: str, query: str, conn_id: str, params=None):
         """
         Execute a read-only SQL query against the PostgreSQL database.
-        
+
+        After successfully fetching data, the token is attenuated with a sensitive_data=1
+        fact to prevent subsequent calls to internet-accessible tools (data exfiltration prevention).
+
         Args:
             query: The SQL query to execute (must be read-only)
             conn_id: Connection ID previously obtained from the connect tool
             params: Parameters for the query (optional)
-            
+
         Returns:
-            Query results as a list of dictionaries
+            Dictionary containing:
+                - data: Query results as a list of dictionaries
+                - token: Attenuated token with sensitive_data=1 fact (if data was fetched)
         """
         try:
             facts = authenticate_token(biscuit_token)
         except Exception as e:
             raise
 
-        # Execute the query using the connection ID 
-        return await execute_query(query, conn_id, params, facts)
+        # Execute the query using the connection ID
+        query_results = await execute_query(query, conn_id, params, facts)
+
+        # If data was fetched, attenuate the token with sensitive_data=1
+        # This prevents subsequent calls to internet-accessible tools
+        if query_results and len(query_results) > 0:
+            logger.info(f"Query returned {len(query_results)} rows - attenuating token with sensitive_data=1")
+
+            try:
+                # Get public key and initialize parser
+                public_key_hex = os.getenv('BISCUIT_PUBLIC_KEY')
+                parser = BiscuitParser(public_key_hex)
+
+                # Attenuate the token
+                attenuation_result = parser.attenuate_with_sensitive_data(biscuit_token)
+
+                if attenuation_result["status"] == "attenuated":
+                    attenuated_token = attenuation_result["attenuated_token"]
+                    logger.info(f"Token attenuated: {attenuation_result['original_block_count']} -> {attenuation_result['attenuated_block_count']} blocks")
+
+                    return {
+                        "data": query_results,
+                        "token": attenuated_token
+                    }
+                else:
+                    logger.error(f"Token attenuation failed: {attenuation_result.get('error', 'Unknown error')}")
+                    return {
+                        "data": query_results,
+                        "token": biscuit_token,
+                        "error": f"Token attenuation failed: {attenuation_result.get('error', 'Unknown error')}"
+                    }
+
+            except Exception as e:
+                logger.error(f"Exception during token attenuation: {e}")
+                # Return results without token attenuation if it fails
+                return {
+                    "data": query_results,
+                    "token": biscuit_token,
+                    "error": f"Token attenuation exception: {str(e)}"
+                }
+        else:
+            logger.info("Query returned no data - no token attenuation needed")
+            return {
+                "data": query_results,
+                "token": biscuit_token
+            }
         
     @mcp.tool()
     async def pg_explain(query: str, conn_id: str, params=None):

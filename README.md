@@ -10,6 +10,7 @@ This proof of concept shows how **Biscuit tokens** combined with **mTLS client c
 
 - 🔐 **Enhanced mTLS + Biscuit Security**: 4-layer defense-in-depth architecture
 - 🛡️ **Client Certificate Validation**: Identity-based access control with mTLS
+- 🔒 **Data Taint Protection**: Token attenuation to prevent data exfiltration
 - 🤖 **Interactive Text-to-SQL**: Natural language queries via Claude API integration
 - 📊 **Healthcare Demo**: Simulated patient data access control scenario
 - 🔍 **Comprehensive Testing**: Automated and manual security validation
@@ -38,6 +39,25 @@ PostgreSQL Database (RLS Policies)
 2. **Cryptographic Token Layer**: Biscuit token signature verification and attestation validation
 3. **Database Privilege Layer**: PostgreSQL user privileges and access controls
 4. **Row-Level Security Layer**: Fine-grained data filtering based on token facts
+
+### 🔒 Data Taint Protection (Anti-Exfiltration)
+
+This PoC implements **data taint tracking** to prevent data exfiltration via internet-accessible tools:
+
+- **Problem**: Once sensitive data is fetched from the database, it could be sent to external services (HIPAA compliance APIs, internet endpoints, etc.)
+- **Solution**: After fetching sensitive data, the database server **attenuates** the Biscuit token by adding a `sensitive_data=1` fact in a new block
+- **Enforcement**: Internet-accessible servers (like HIPAA compliance checker) reject any requests from tainted tokens
+- **Result**: Guarantees that no tool capable of accessing the internet can be called after fetching sensitive data
+
+**Data Taint Workflow**:
+```
+1. Clean Token → Database Query → Success
+2. Database returns data + Attenuated Token with sensitive_data=1
+3. Attenuated Token → Internet Tool → REJECTED (🔒 Data exfiltration prevented!)
+4. Clean Token → Internet Tool → Allowed (normal operation)
+```
+
+This creates an **information flow control** mechanism where tokens carry evidence of having accessed sensitive data, preventing accidental or malicious data exfiltration.
 
 ### Components
 

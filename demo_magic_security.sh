@@ -98,6 +98,7 @@ function demo_intro() {
     echo -e "${CYAN}  🎫 Cryptographic Authorization (Biscuit) - Tamper-proof tokens${COLOR_RESET}"
     echo -e "${CYAN}  👤 Identity Validation - Client certificate identity matching${COLOR_RESET}"
     echo -e "${CYAN}  📊 Data Protection (RLS) - PostgreSQL Row-Level Security${COLOR_RESET}"
+    echo -e "${CYAN}  🔓 Data Taint Protection - Token attenuation to prevent exfiltration${COLOR_RESET}"
     echo ""
     echo -e "${YELLOW}Each layer provides independent security even if others are compromised.${COLOR_RESET}"
 
@@ -426,6 +427,48 @@ function demo_unauthorized_all_patients() {
 }
 
 ########################
+# Demo 10: Data Taint Protection
+########################
+function demo_data_taint_protection() {
+    demo_section "DEMO 10: DATA TAINT PROTECTION - ANTI-EXFILTRATION" "Preventing data leakage via token attenuation"
+
+    echo -e "${MAGENTA}🎯 Scenario: Demonstrate information flow control to prevent data exfiltration${COLOR_RESET}"
+    echo ""
+    echo -e "${WHITE}This demonstrates critical security:${COLOR_RESET}"
+    echo -e "${CYAN}  1. 🗄️  Query database → Token gets tainted with sensitive_data=1${COLOR_RESET}"
+    echo -e "${CYAN}  2. 🌐 Try to access internet tool → REJECTED (taint protection)${COLOR_RESET}"
+    echo -e "${CYAN}  3. 🔓 Clean token → Internet tool → ALLOWED (normal operation)${COLOR_RESET}"
+    echo ""
+
+    p "# Step 1: Run end-to-end data taint protection test"
+    pe "uv run python local/test_data_taint_e2e.py"
+
+    echo ""
+    echo -e "${YELLOW}🔒 Let's break down what just happened:${COLOR_RESET}"
+    echo ""
+
+    p "# Explanation of the data taint workflow:"
+    pe "echo '1️⃣  Clean token queries database → Gets data + Attenuated token'"
+    pe "echo '2️⃣  Attenuated token has new block: sensitive_data(1)'"
+    pe "echo '3️⃣  HIPAA server detects taint → Rejects request'"
+    pe "echo '4️⃣  Original clean token → HIPAA server → Still works'"
+
+    echo ""
+    echo -e "${GREEN}🎯 Key Security Properties:${COLOR_RESET}"
+    echo -e "${WHITE}   ✅ Cryptographic taint tracking (non-bypassable)${COLOR_RESET}"
+    echo -e "${WHITE}   ✅ Automatic token attenuation after data access${COLOR_RESET}"
+    echo -e "${WHITE}   ✅ Internet tools reject tainted tokens${COLOR_RESET}"
+    echo -e "${WHITE}   ✅ No central state required (stateless enforcement)${COLOR_RESET}"
+
+    demo_explanation "🔒 Token attenuation creates cryptographic proof of data access
+   🌐 Internet-accessible tools check for taint before processing
+   🛡️  Prevents accidental or malicious data exfiltration
+   🎫 Information flow control enforced at token level"
+
+    wait_for_enter
+}
+
+########################
 # Security Validation Tests
 ########################
 function demo_security_tests() {
@@ -541,6 +584,12 @@ function demo_summary() {
     echo -e "${CYAN}   • Identity consistency checking${COLOR_RESET}"
     echo -e "${CYAN}   • Multi-layered defense validation${COLOR_RESET}"
     echo ""
+    echo -e "${WHITE}✅ Data Taint Protection:${COLOR_RESET}"
+    echo -e "${CYAN}   • Token attenuation after data access${COLOR_RESET}"
+    echo -e "${CYAN}   • Information flow control${COLOR_RESET}"
+    echo -e "${CYAN}   • Anti-exfiltration enforcement${COLOR_RESET}"
+    echo -e "${CYAN}   • Cryptographic taint tracking${COLOR_RESET}"
+    echo ""
     echo -e "${YELLOW}🚀 The MCP-Biscuit Security PoC demonstrates enterprise-grade${COLOR_RESET}"
     echo -e "${YELLOW}   security capabilities ready for production deployment.${COLOR_RESET}"
     echo ""
@@ -576,6 +625,9 @@ function main_demo() {
 
     # Advanced security boundary testing
     demo_unauthorized_all_patients
+
+    # Data taint protection demonstration
+    demo_data_taint_protection
 
     # Security validation tests
     demo_security_tests

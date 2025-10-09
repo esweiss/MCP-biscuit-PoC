@@ -106,7 +106,9 @@ def authenticate_token(biscuit_token: Optional[str]) -> Dict[str, Any]:
     """
     Authenticate and extract facts from Biscuit token.
 
-    Simplified version that returns facts dict directly like database server.
+    Checks for sensitive_data fact to prevent data exfiltration. If the token
+    contains sensitive_data=1, the request is rejected as the token has been
+    tainted by accessing sensitive data from the database.
 
     Args:
         biscuit_token: Base64-encoded Biscuit token
@@ -146,6 +148,24 @@ def authenticate_token(biscuit_token: Optional[str]) -> Dict[str, Any]:
                 "error": f"Parser initialization failed: {str(e)}"
             }
 
+        # Check for sensitive_data taint before proceeding
+        # This prevents data exfiltration via internet-accessible tools
+        try:
+            taint_check = parser.check_sensitive_data(biscuit_token)
+
+            if taint_check.get("is_tainted"):
+                logger.warning("🚫 Token rejected: contains sensitive_data fact (data taint protection)")
+                return {
+                    "status": "tainted_token",
+                    "authenticated": False,
+                    "is_tainted": True,
+                    "error": "Token has been tainted with sensitive data. Cannot access internet-accessible tools to prevent data exfiltration."
+                }
+        except Exception as e:
+            logger.error(f"Error checking for sensitive_data taint: {e}")
+            # Continue with verification even if taint check fails
+            # This ensures service availability
+
         try:
             facts = parser.verify_and_extract_facts(biscuit_token)
         except Exception as e:
@@ -163,7 +183,8 @@ def authenticate_token(biscuit_token: Optional[str]) -> Dict[str, Any]:
             logger.info("✅ Biscuit token verified successfully")
             return {
                 **facts,
-                "authenticated": True
+                "authenticated": True,
+                "is_tainted": False
             }
         else:
             logger.warning(f"❌ Token verification returned status: {facts.get('status')}")

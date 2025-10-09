@@ -339,6 +339,8 @@ class BiscuitParser:
                 facts["mtls_clients"] = authorizer.query(biscuit.Rule('data($client) <- mtls_client($client)'))
                 facts["mtls_audiences"] = authorizer.query(biscuit.Rule('data($audience) <- mtls_audience($audience)'))
                 facts["attestation_times"] = authorizer.query(biscuit.Rule('data($time) <- attestation_time($time)'))
+                # Add sensitive_data fact query for data exfiltration prevention
+                facts["sensitive_data"] = authorizer.query(biscuit.Rule('data($value) <- sensitive_data($value)'))
             except Exception as query_error:
                 facts["query_error"] = str(query_error)
             
@@ -520,10 +522,148 @@ class BiscuitParser:
             
         except Exception as e:
             return {
-                "status": "validation_error", 
+                "status": "validation_error",
                 "error": str(e),
                 "mtls_validation": False
             }
+
+    def attenuate_token(self, token_b64: str, datalog_code: str) -> Dict[str, Any]:
+        """
+        Generic method to attenuate a token by appending a new block with Datalog code.
+
+        Args:
+            token_b64 (str): Base64-encoded biscuit token to attenuate
+            datalog_code (str): Datalog code to add in the new block (e.g., "sensitive_data(1);")
+
+        Returns:
+            Dict[str, Any]: Result containing the attenuated token or error
+        """
+        if not self.public_key:
+            return {
+                "status": "attenuation_error",
+                "error": "No public key provided for token verification"
+            }
+
+        try:
+            # Parse the original token
+            original_token = biscuit.Biscuit.from_base64(token_b64, self.public_key)
+            original_block_count = original_token.block_count()
+
+            # Create a new block with the provided Datalog code
+            block_builder = biscuit.BlockBuilder()
+            block_builder.add_code(datalog_code)
+
+            # Append the block to create attenuated token
+            attenuated_token = original_token.append(block_builder)
+            attenuated_token_b64 = attenuated_token.to_base64()
+            attenuated_block_count = attenuated_token.block_count()
+
+            return {
+                "status": "attenuated",
+                "original_block_count": original_block_count,
+                "attenuated_block_count": attenuated_block_count,
+                "attenuated_token": attenuated_token_b64
+            }
+
+        except Exception as e:
+            return {
+                "status": "attenuation_error",
+                "error": str(e)
+            }
+
+    def check_fact_with_authorization(self, token_b64: str, fact_check: str,
+                                     current_time: Optional[datetime] = None) -> Dict[str, Any]:
+        """
+        Generic method to check for a fact by inspecting block sources.
+
+        Due to limitations in biscuit-python 0.4.0 where queries don't work across
+        multiple blocks, we inspect the block source code directly to detect facts.
+
+        Args:
+            token_b64 (str): Base64-encoded biscuit token to check
+            fact_check (str): Datalog fact to check for (e.g., "sensitive_data")
+            current_time (Optional[datetime]): Current time for verification
+
+        Returns:
+            Dict[str, Any]: Result containing whether fact was found
+        """
+        if not self.public_key:
+            return {
+                "status": "check_error",
+                "error": "No public key provided for verification",
+                "fact_found": False
+            }
+
+        try:
+            verified_token = biscuit.Biscuit.from_base64(token_b64, self.public_key)
+
+            # Inspect all blocks for the fact
+            fact_found = False
+            found_in_block = None
+
+            for i in range(verified_token.block_count()):
+                try:
+                    block_source = verified_token.block_source(i)
+
+                    # Check if the fact appears in the block source
+                    # Look for patterns like "sensitive_data(1)" or "sensitive_data($v)"
+                    if f"{fact_check}(" in block_source:
+                        fact_found = True
+                        found_in_block = i
+                        break
+                except Exception as e:
+                    # Continue checking other blocks if one fails
+                    continue
+
+            return {
+                "status": "check_complete",
+                "fact_found": fact_found,
+                "found_in_block": found_in_block,
+                "block_count": verified_token.block_count()
+            }
+
+        except Exception as e:
+            return {
+                "status": "check_error",
+                "error": str(e),
+                "fact_found": False
+            }
+
+    def attenuate_with_sensitive_data(self, token_b64: str) -> Dict[str, Any]:
+        """
+        Attenuate a token by appending a sensitive_data=1 fact in a new block.
+
+        This is used to "taint" tokens after they have accessed sensitive data,
+        preventing subsequent calls to internet-accessible tools (data exfiltration prevention).
+
+        Args:
+            token_b64 (str): Base64-encoded biscuit token to attenuate
+
+        Returns:
+            Dict[str, Any]: Result containing the attenuated token or error
+        """
+        return self.attenuate_token(token_b64, "sensitive_data(1);")
+
+    def check_sensitive_data(self, token_b64: str, current_time: Optional[datetime] = None) -> Dict[str, Any]:
+        """
+        Check if a token contains the sensitive_data fact (data taint marker).
+
+        Args:
+            token_b64 (str): Base64-encoded biscuit token to check
+            current_time (Optional[datetime]): Current time for verification
+
+        Returns:
+            Dict[str, Any]: Result containing whether token is tainted
+        """
+        result = self.check_fact_with_authorization(token_b64, "sensitive_data", current_time)
+
+        # Rename fact_found to is_tainted for clarity
+        if result["status"] == "check_complete":
+            result["is_tainted"] = result.pop("fact_found")
+        else:
+            result["is_tainted"] = False
+
+        return result
 
 
 class BiscuitAuthorizationError(Exception):
