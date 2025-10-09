@@ -28,11 +28,15 @@ class BiscuitParser:
         """Initialize parser with optional public key for verification."""
         self.public_key = None
         if public_key_hex:
-            self.public_key = biscuit.PublicKey.from_hex(public_key_hex)
+            # biscuit-python 0.4.0 changed from_hex() to from_bytes() with algorithm parameter
+            public_key_bytes = bytes.fromhex(public_key_hex)
+            self.public_key = biscuit.PublicKey.from_bytes(public_key_bytes, biscuit.Algorithm.Ed25519)
     
     def set_public_key(self, public_key_hex: str) -> None:
         """Set or update the public key for verification."""
-        self.public_key = biscuit.PublicKey.from_hex(public_key_hex)
+        # biscuit-python 0.4.0 changed from_hex() to from_bytes() with algorithm parameter
+        public_key_bytes = bytes.fromhex(public_key_hex)
+        self.public_key = biscuit.PublicKey.from_bytes(public_key_bytes, biscuit.Algorithm.Ed25519)
     
     def parse_unverified(self, token_b64: str) -> Dict[str, Any]:
         """
@@ -129,28 +133,25 @@ class BiscuitParser:
             # Parse and verify the token
             verified_token = biscuit.Biscuit.from_base64(token_b64, self.public_key)
             
-            # Create authorizer with current context
+            # biscuit-python 0.4.0 uses AuthorizerBuilder instead of Authorizer constructor
             current_timestamp = int(current_time.timestamp())
-            authorizer = biscuit.Authorizer(f"""
+            authorizer = biscuit.AuthorizerBuilder(f"""
                 time({current_timestamp});
                 resource("{resource}");
                 operation("{operation}");
                 request_user("{user_id}");
-                
+
                 // Allow if token grants permission
                 allow if user("{user_id}"), resource("{resource}"), operation("{operation}");
-                
+
                 // Allow with role-based rules
-                allow if user("{user_id}"), role($role), resource("{resource}"), 
+                allow if user("{user_id}"), role($role), resource("{resource}"),
                          allow("{user_id}", "{resource}", "{operation}");
-                
+
                 // Time-based authorization
                 allow if user("{user_id}"), resource("{resource}"), operation("{operation}"),
                          time($time), expiry($exp), $time <= $exp;
-            """)
-            
-            # Add the token to the authorizer
-            authorizer.add_token(verified_token)
+            """).build(verified_token)
             
             # Perform authorization
             auth_result = authorizer.authorize()
@@ -318,12 +319,11 @@ class BiscuitParser:
         
         try:
             verified_token = biscuit.Biscuit.from_base64(token_b64, self.public_key)
-            
+
+            # biscuit-python 0.4.0 uses AuthorizerBuilder instead of Authorizer constructor
             current_timestamp = int(current_time.timestamp())
-            authorizer = biscuit.Authorizer(f"time({current_timestamp});")
-            
-            authorizer.add_token(verified_token)
-            
+            authorizer = biscuit.AuthorizerBuilder(f"time({current_timestamp});").build(verified_token)
+
             facts = {}
             try:
                 facts["users"] = authorizer.query(biscuit.Rule('data($u) <- user($u)'))
