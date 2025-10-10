@@ -120,37 +120,39 @@ function demo_prerequisites() {
     demo_explanation "All certificates are present and ready for mTLS authentication"
     wait_for_enter
 
-    echo -e "${CYAN}🚀 Starting security infrastructure (MCP server + mTLS proxy)...${COLOR_RESET}"
+    echo -e "${CYAN}🚀 Starting security infrastructure (Dual mTLS servers)...${COLOR_RESET}"
     echo ""
 
-    p "# Clean up any existing servers on ports 8000 and 8443"
+    p "# Clean up any existing servers on ports 8443 and 9443"
     pe "echo 'Stopping any existing servers...'"
-    pe "pkill -f 'server/app.py' || true"
-    pe "pkill -f 'server/mtls_proxy.py' || true"
+    pe "pkill -f 'server/custom_mtls_server.py' || true"
+    pe "pkill -f 'hipaa-server/custom_mtls_server.py' || true"
     pe "sleep 2  # Allow processes to terminate"
 
-    p "# Start MCP server on HTTP (backend for proxy)"
-    pe "echo 'Starting MCP server on HTTP port 8000 (backend)...'"
-    pe "ENABLE_TLS=false PYTHONPATH=. uv run python server/app.py > /tmp/mcp_server.log 2>&1 &"
+    p "# Start Database mTLS server on port 8443"
+    pe "echo 'Starting Database mTLS server on port 8443...'"
+    pe "source .env && PYTHONPATH=. BISCUIT_PUBLIC_KEY=\$BISCUIT_PUBLIC_KEY uv run python server/custom_mtls_server.py > /tmp/database_mtls_server.log 2>&1 &"
     pe "sleep 3  # Allow server to start"
 
-    p "# Verify MCP server started successfully"
-    pe "if grep -q 'ERROR.*address already in use' /tmp/mcp_server.log 2>/dev/null; then echo '❌ MCP server failed to start (port 8000 in use)'; else echo '✅ MCP server started'; fi"
+    p "# Verify Database mTLS server started successfully"
+    pe "if grep -q 'ERROR.*address already in use' /tmp/database_mtls_server.log 2>/dev/null; then echo '❌ Database mTLS server failed to start (port 8443 in use)'; else echo '✅ Database mTLS server started'; fi"
 
-    p "# Start mTLS proxy (terminates TLS and forwards to MCP server)"
-    pe "echo 'Starting mTLS proxy on HTTPS port 8443 (frontend)...'"
-    pe "PYTHONPATH=. uv run python server/mtls_proxy.py > /tmp/mtls_proxy.log 2>&1 &"
-    pe "sleep 3  # Allow proxy to start"
+    p "# Start HIPAA mTLS server on port 9443"
+    pe "echo 'Starting HIPAA mTLS server on port 9443...'"
+    pe "source .env && PYTHONPATH=. BISCUIT_PUBLIC_KEY=\$BISCUIT_PUBLIC_KEY uv run python hipaa-server/custom_mtls_server.py > /tmp/hipaa_mtls_server.log 2>&1 &"
+    pe "sleep 3  # Allow server to start"
 
-    p "# Verify mTLS proxy started successfully"
-    pe "if grep -q 'ERROR.*address already in use' /tmp/mtls_proxy.log 2>/dev/null; then echo '❌ mTLS proxy failed to start (port 8443 in use)'; else echo '✅ mTLS proxy started'; fi"
+    p "# Verify HIPAA mTLS server started successfully"
+    pe "if grep -q 'ERROR.*address already in use' /tmp/hipaa_mtls_server.log 2>/dev/null; then echo '❌ HIPAA mTLS server failed to start (port 9443 in use)'; else echo '✅ HIPAA mTLS server started'; fi"
 
-    p "# Test if mTLS proxy is running and forwarding correctly"
-    pe "timeout 3 curl -s --cert certs/claude-client-cert.pem --key certs/claude-client-key.pem --cacert certs/ca-cert.pem https://localhost:8443/sse -w 'Status: %{http_code}\\n' | head -1 || echo 'SSE endpoint streaming (connection successful)'"
+    p "# Test if both mTLS servers are running"
+    pe "curl -s -k --cert certs/claude-client-cert.pem --key certs/claude-client-key.pem https://localhost:8443/health | jq -r '.status' && echo '✅ Database server health check passed'"
+    pe "curl -s -k --cert certs/claude-client-cert.pem --key certs/claude-client-key.pem https://localhost:9443/health | jq -r '.status' && echo '✅ HIPAA server health check passed'"
 
-    demo_explanation "✅ mTLS proxy terminates SSL/TLS and forwards to backend MCP server
-   ✅ Transport security (mTLS) is separated from application logic
-   ✅ Defense-in-depth: TLS termination + backend authorization"
+    demo_explanation "✅ Dual mTLS server architecture with independent security boundaries
+   ✅ Database mTLS server (port 8443) with full Biscuit token integration
+   ✅ HIPAA mTLS server (port 9443) with data taint protection
+   ✅ Defense-in-depth: mTLS transport + Biscuit authorization + RLS"
     wait_for_enter
 }
 
@@ -308,14 +310,15 @@ function demo_token_analysis() {
 # Demo 7: Database RLS Success with Text-to-SQL
 ########################
 function demo_database_rls_success() {
-    demo_section "DEMO 7: TEXT-TO-SQL + RLS SUCCESS" "Natural language query with cryptographic authorization"
+    demo_section "DEMO 7: TEXT-TO-SQL + RLS SUCCESS WITH mTLS" "Natural language query with mTLS and cryptographic authorization"
 
-    echo -e "${GREEN}🎯 Scenario: Natural language query for patient 'Erin oRTEga' with authorization token${COLOR_RESET}"
+    echo -e "${GREEN}🎯 Scenario: Natural language query for patient 'Erin oRTEga' with full security stack${COLOR_RESET}"
     echo ""
     echo -e "${WHITE}This demonstrates the complete flow:${COLOR_RESET}"
-    echo -e "${CYAN}  1. 🧠 Natural language → Claude API → SQL conversion${COLOR_RESET}"
-    echo -e "${CYAN}  2. 🎫 Biscuit token validation and fact extraction${COLOR_RESET}"
-    echo -e "${CYAN}  3. 🛡️  Row-Level Security filtering based on token facts${COLOR_RESET}"
+    echo -e "${CYAN}  1. 🔒 mTLS client certificate authentication${COLOR_RESET}"
+    echo -e "${CYAN}  2. 🧠 Natural language → Claude API → SQL conversion${COLOR_RESET}"
+    echo -e "${CYAN}  3. 🎫 Biscuit token validation and fact extraction${COLOR_RESET}"
+    echo -e "${CYAN}  4. 🛡️  Row-Level Security filtering based on token facts${COLOR_RESET}"
     echo ""
 
     p "# Step 1: Use configured Biscuit token for patient 'Erin oRTEga' from .env"
@@ -328,16 +331,18 @@ function demo_database_rls_success() {
     pe "echo 'Natural Language Query: \"Show me all medical records for patient Erin oRTEga\"'"
 
     echo ""
-    echo -e "${YELLOW}🤖 Now Claude API will convert this to SQL and execute with security validation...${COLOR_RESET}"
+    echo -e "${YELLOW}🤖 Connecting via mTLS to Database server (port 8443)...${COLOR_RESET}"
+    echo -e "${YELLOW}🔒 Client certificate authentication + Biscuit token validation${COLOR_RESET}"
     echo ""
 
-    p "# Step 4: Send natural language query to Claude API for text-to-SQL conversion"
+    p "# Step 4: Send natural language query via mTLS to Database server"
     pe "uv run python example-clients/claude_cli_tls.py 'Show me all medical records for patient Erin oRTEga'"
 
-    demo_explanation "🧠 Natural language → SQL via Claude API
-   🎫 Biscuit token facts validate query authorization
+    demo_explanation "🔒 mTLS transport security + client certificate validation
+   🧠 Natural language → SQL via Claude API
+   🎫 Biscuit token cryptographic verification
    🛡️  RLS policies filter results to authorized records only
-   🔗 Complete AI + cryptographic security integration"
+   🔗 Complete defense-in-depth security integration"
 
     wait_for_enter
 }
@@ -346,14 +351,15 @@ function demo_database_rls_success() {
 # Demo 8: Text-to-SQL with Wrong Patient Token
 ########################
 function demo_database_rls_failure() {
-    demo_section "DEMO 8: TEXT-TO-SQL + CROSS-PATIENT PROTECTION" "Demonstrating RLS prevents unauthorized data access"
+    demo_section "DEMO 8: mTLS + TEXT-TO-SQL + CROSS-PATIENT PROTECTION" "Demonstrating security boundaries with mTLS"
 
-    echo -e "${RED}🎯 Scenario: Same natural language query but with different patient authorization${COLOR_RESET}"
+    echo -e "${RED}🎯 Scenario: mTLS connection with mismatched patient authorization${COLOR_RESET}"
     echo ""
     echo -e "${WHITE}This demonstrates security boundaries:${COLOR_RESET}"
-    echo -e "${CYAN}  1. 🧠 Same natural language query (asking for Erin's records)${COLOR_RESET}"
-    echo -e "${CYAN}  2. 🎫 Different Biscuit token (authorized for DAvID AndErSON)${COLOR_RESET}"
-    echo -e "${CYAN}  3. 🛡️  RLS blocks unauthorized cross-patient access${COLOR_RESET}"
+    echo -e "${CYAN}  1. 🔒 mTLS client certificate authentication (authorized)${COLOR_RESET}"
+    echo -e "${CYAN}  2. 🧠 Same natural language query (asking for Erin's records)${COLOR_RESET}"
+    echo -e "${CYAN}  3. 🎫 Different Biscuit token (authorized for DAvID AndErSON)${COLOR_RESET}"
+    echo -e "${CYAN}  4. 🛡️  RLS blocks unauthorized cross-patient access${COLOR_RESET}"
     echo ""
 
     p "# Step 1: Generate token for different patient 'DAvID AndErSON' (demonstration purposes)"
@@ -371,16 +377,17 @@ function demo_database_rls_failure() {
     echo -e "${YELLOW}🔒 Security Test: Asking for Erin's data with DAvID's authorization token...${COLOR_RESET}"
     echo ""
 
-    p "# Step 4: Same natural language query but different authorization"
+    p "# Step 4: Connect via mTLS with mismatched token"
     pe "uv run python example-clients/claude_cli_tls.py 'Show me all medical records for patient Erin oRTEga'"
 
     echo ""
     echo -e "${GREEN}🛡️  Expected Result: Token verification fails OR no Erin records returned${COLOR_RESET}"
 
-    demo_explanation "🔐 Token cryptographic verification provides first line of defense
-   🛡️  RLS policies prevent cross-patient data leakage (if token verifies)
-   🚫 Unauthorized tokens fail at verification stage
-   🎯 Defense-in-depth: cryptographic + database authorization"
+    demo_explanation "🔒 mTLS transport security validates client identity
+   🔐 Token cryptographic verification provides authorization boundary
+   🛡️  RLS policies prevent cross-patient data leakage
+   🚫 Mismatched tokens fail at verification or return empty results
+   🎯 Defense-in-depth: mTLS + cryptographic + database authorization"
 
     wait_for_enter
 }
@@ -389,14 +396,15 @@ function demo_database_rls_failure() {
 # Demo 9: Unauthorized All-Patients Query
 ########################
 function demo_unauthorized_all_patients() {
-    demo_section "DEMO 9: UNAUTHORIZED ALL-PATIENTS QUERY" "Testing RLS boundaries with broad data access attempt"
+    demo_section "DEMO 9: mTLS + UNAUTHORIZED ALL-PATIENTS QUERY" "Testing security boundaries with mTLS and broad data access attempt"
 
-    echo -e "${RED}🎯 Scenario: Attempt to access ALL patient data with single-patient authorization${COLOR_RESET}"
+    echo -e "${RED}🎯 Scenario: mTLS connection attempting to access ALL patient data${COLOR_RESET}"
     echo ""
     echo -e "${WHITE}This demonstrates critical security boundaries:${COLOR_RESET}"
-    echo -e "${CYAN}  1. 🧠 Natural language query requesting ALL patient records${COLOR_RESET}"
-    echo -e "${CYAN}  2. 🎫 Token only authorizes access to Erin oRTEga${COLOR_RESET}"
-    echo -e "${CYAN}  3. 🛡️  RLS prevents unauthorized data disclosure${COLOR_RESET}"
+    echo -e "${CYAN}  1. 🔒 mTLS client certificate authentication (authorized transport)${COLOR_RESET}"
+    echo -e "${CYAN}  2. 🧠 Natural language query requesting ALL patient records${COLOR_RESET}"
+    echo -e "${CYAN}  3. 🎫 Token only authorizes access to Erin oRTEga${COLOR_RESET}"
+    echo -e "${CYAN}  4. 🛡️  RLS prevents unauthorized data disclosure${COLOR_RESET}"
     echo ""
 
     p "# Step 1: Use configured Erin oRTEga's authorization token from .env"
@@ -412,16 +420,18 @@ function demo_unauthorized_all_patients() {
     echo -e "${RED}🚨 Security Test: Attempting to access ALL patient data with limited authorization...${COLOR_RESET}"
     echo ""
 
-    p "# Step 4: Attempt broad data access with restricted authorization"
+    p "# Step 4: Connect via mTLS and attempt broad data access"
     pe "uv run python example-clients/claude_cli_tls.py 'Show me all medical records for all patients'"
 
     echo ""
     echo -e "${GREEN}🛡️  Expected Result: Only Erin's records returned despite broad query${COLOR_RESET}"
 
-    demo_explanation "🚨 Broad queries cannot bypass token-based authorization
+    demo_explanation "🔒 mTLS validates transport-level client identity
+   🚨 Broad queries cannot bypass token-based authorization
    🛡️  RLS enforces data boundaries regardless of query scope
    🎯 Token facts determine maximum accessible data scope
-   🔐 No privilege escalation possible through query manipulation"
+   🔐 No privilege escalation possible through query manipulation
+   🎫 Defense-in-depth: mTLS + Biscuit + RLS working together"
 
     wait_for_enter
 }
@@ -430,40 +440,46 @@ function demo_unauthorized_all_patients() {
 # Demo 10: Data Taint Protection
 ########################
 function demo_data_taint_protection() {
-    demo_section "DEMO 10: DATA TAINT PROTECTION - ANTI-EXFILTRATION" "Preventing data leakage via token attenuation"
+    demo_section "DEMO 10: DUAL mTLS + DATA TAINT PROTECTION" "Complete anti-exfiltration workflow with mTLS servers"
 
-    echo -e "${MAGENTA}🎯 Scenario: Demonstrate information flow control to prevent data exfiltration${COLOR_RESET}"
+    echo -e "${MAGENTA}🎯 Scenario: Demonstrate information flow control across dual mTLS servers${COLOR_RESET}"
     echo ""
-    echo -e "${WHITE}This demonstrates critical security:${COLOR_RESET}"
-    echo -e "${CYAN}  1. 🗄️  Query database → Token gets tainted with sensitive_data=1${COLOR_RESET}"
-    echo -e "${CYAN}  2. 🌐 Try to access internet tool → REJECTED (taint protection)${COLOR_RESET}"
-    echo -e "${CYAN}  3. 🔓 Clean token → Internet tool → ALLOWED (normal operation)${COLOR_RESET}"
+    echo -e "${WHITE}This demonstrates the complete security workflow:${COLOR_RESET}"
+    echo -e "${CYAN}  1. 🔒 mTLS connection to Database server (port 8443)${COLOR_RESET}"
+    echo -e "${CYAN}  2. 🗄️  Query database → Token gets tainted with sensitive_data=1${COLOR_RESET}"
+    echo -e "${CYAN}  3. 🔒 mTLS connection to HIPAA server (port 9443)${COLOR_RESET}"
+    echo -e "${CYAN}  4. 🌐 Try internet tool with tainted token → REJECTED${COLOR_RESET}"
+    echo -e "${CYAN}  5. 🔓 Clean token → HIPAA server → ALLOWED (normal operation)${COLOR_RESET}"
     echo ""
 
-    p "# Step 1: Run end-to-end data taint protection test"
-    pe "uv run python local/test_data_taint_e2e.py"
+    p "# Step 1: Run comprehensive dual mTLS + data taint protection test"
+    pe "source .env && ./local/test_full_mtls_workflow.sh"
 
     echo ""
     echo -e "${YELLOW}🔒 Let's break down what just happened:${COLOR_RESET}"
     echo ""
 
-    p "# Explanation of the data taint workflow:"
-    pe "echo '1️⃣  Clean token queries database → Gets data + Attenuated token'"
-    pe "echo '2️⃣  Attenuated token has new block: sensitive_data(1)'"
-    pe "echo '3️⃣  HIPAA server detects taint → Rejects request'"
-    pe "echo '4️⃣  Original clean token → HIPAA server → Still works'"
+    p "# Explanation of the dual mTLS + data taint workflow:"
+    pe "echo '1️⃣  mTLS auth to Database server (8443) → Biscuit token verified'"
+    pe "echo '2️⃣  Clean token queries database → Gets data + Attenuated token'"
+    pe "echo '3️⃣  Attenuated token has new block: sensitive_data(1)'"
+    pe "echo '4️⃣  mTLS auth to HIPAA server (9443) → Detects taint → Rejects'"
+    pe "echo '5️⃣  Original clean token → HIPAA server → Still works'"
 
     echo ""
     echo -e "${GREEN}🎯 Key Security Properties:${COLOR_RESET}"
+    echo -e "${WHITE}   ✅ Dual mTLS servers with independent security boundaries${COLOR_RESET}"
     echo -e "${WHITE}   ✅ Cryptographic taint tracking (non-bypassable)${COLOR_RESET}"
     echo -e "${WHITE}   ✅ Automatic token attenuation after data access${COLOR_RESET}"
     echo -e "${WHITE}   ✅ Internet tools reject tainted tokens${COLOR_RESET}"
     echo -e "${WHITE}   ✅ No central state required (stateless enforcement)${COLOR_RESET}"
 
-    demo_explanation "🔒 Token attenuation creates cryptographic proof of data access
-   🌐 Internet-accessible tools check for taint before processing
+    demo_explanation "🔒 Dual mTLS servers create separate security domains
+   🔐 Token attenuation creates cryptographic proof of data access
+   🌐 HIPAA server (internet-accessible) checks for taint
    🛡️  Prevents accidental or malicious data exfiltration
-   🎫 Information flow control enforced at token level"
+   🎫 Information flow control enforced at token level
+   🎯 Defense-in-depth: mTLS + Biscuit + Token attenuation"
 
     wait_for_enter
 }
