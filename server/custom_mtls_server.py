@@ -46,25 +46,37 @@ logger = logging.getLogger(__name__)
 class MTLSHTTPServer:
     """Custom HTTP server with proper mTLS client certificate handling."""
     
-    def __init__(self, host="0.0.0.0", port=8443, cert_dir="certs"):
+    def __init__(self, host="0.0.0.0", port=8443, cert_dir="certs", server_type="database", mcp_instance=None):
+        """
+        Initialize mTLS HTTP server.
+
+        Args:
+            host: Host to bind to
+            port: Port to bind to
+            cert_dir: Directory containing certificates
+            server_type: Type of server ("database" or "hipaa")
+            mcp_instance: MCP server instance to use
+        """
         self.host = host
         self.port = port
         self.cert_dir = Path(cert_dir)
+        self.server_type = server_type
         self.tls_config = TLSConfig(cert_dir)
         self.server = None
+        self.mcp_instance = mcp_instance
 
         # Initialize Biscuit parser for token validation
         self.biscuit_parser = None
         self.setup_biscuit_validation()
 
         # Server's own identity (from its certificate)
-        self.server_identity = "mcp-server"  # This should match the server certificate CN
+        self.server_identity = f"{server_type}-mcp-server"
 
         # MCP session management
         self.mcp_sessions = {}  # session_id -> {read_stream_writer, client_identity}
         self.message_endpoint = "/messages/"
 
-        # Register MCP components
+        # Register MCP components based on server type
         self.setup_mcp_server()
         
     def setup_biscuit_validation(self):

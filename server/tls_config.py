@@ -26,6 +26,7 @@ class TLSConfig:
         return [
             "claude-client",
             "authorized-client",
+            "hipaa-server",
         ]
     
     def create_ssl_context(self, require_client_cert: bool = True) -> ssl.SSLContext:
