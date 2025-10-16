@@ -216,8 +216,8 @@ class MTLSProxy:
 
     async def start(self):
         """Start the mTLS proxy server."""
-        # Create SSL context for mTLS (optional client certs for better testing)
-        ssl_context = self.tls_config.create_ssl_context(require_client_cert=False)
+        # Create SSL context for mTLS (require client certs)
+        ssl_context = self.tls_config.create_ssl_context(require_client_cert=True)
 
         # Start server
         server = await asyncio.start_server(
