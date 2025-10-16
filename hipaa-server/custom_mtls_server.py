@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 sys.path.append(str(Path(__file__).parent.parent))
 
 from server.tls_config import TLSConfig
+from biscuit_parser_module import BiscuitParser
 
 # Add hipaa-server to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -55,6 +56,15 @@ class HIPAAMTLSServer:
         # MCP session management
         self.mcp_sessions = {}  # session_id -> {read_stream_writer, client_identity}
         self.message_endpoint = "/messages/"
+
+        # Initialize Biscuit token parser
+        public_key_hex = os.getenv('BISCUIT_PUBLIC_KEY')
+        if public_key_hex:
+            self.biscuit_parser = BiscuitParser(public_key_hex)
+            logger.info("🔐 Biscuit token validation enabled")
+        else:
+            self.biscuit_parser = None
+            logger.warning("⚠️  Biscuit token validation disabled (no BISCUIT_PUBLIC_KEY)")
 
         # Register MCP components
         self.setup_mcp_server()
@@ -174,6 +184,38 @@ class HIPAAMTLSServer:
     async def route_request(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, method: str, path: str,
                           headers: Dict[str, str], client_identity: str, request_data: bytes):
         """Route HTTP requests to appropriate handlers."""
+
+        # Extract and validate Biscuit token if present (for data taint protection)
+        authorization_header = headers.get('authorization', '')
+        if authorization_header and authorization_header.startswith('Bearer '):
+            biscuit_token = authorization_header[7:]  # Remove 'Bearer ' prefix
+
+            # Check for data taint to prevent exfiltration
+            if self.biscuit_parser:
+                try:
+                    taint_check = self.biscuit_parser.check_sensitive_data(biscuit_token)
+
+                    if taint_check.get('is_tainted'):
+                        logger.warning(f"🚫 Token rejected: contains sensitive_data fact (data taint protection)")
+                        error_data = {
+                            "error": "Token has been tainted with sensitive data",
+                            "details": "Cannot access internet-accessible tools to prevent data exfiltration",
+                            "status": "forbidden",
+                            "tainted": True
+                        }
+                        await self.send_error_response(writer, 403, "Forbidden", error_data)
+                        return
+                    else:
+                        logger.info(f"✅ Token validated: no sensitive_data fact present")
+                except Exception as e:
+                    logger.error(f"❌ Biscuit token validation failed: {e}")
+                    error_data = {
+                        "error": "Biscuit token validation failed",
+                        "details": str(e),
+                        "status": "validation_failed"
+                    }
+                    await self.send_error_response(writer, 401, "Unauthorized", error_data)
+                    return
 
         # Health check endpoint
         if path == "/health" or path == "/":

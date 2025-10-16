@@ -18,10 +18,8 @@ class BiscuitGenerator:
         if private_key:
             private_key_bytes = bytes.fromhex(private_key)
             self.private_key = biscuit.PrivateKey.from_bytes(private_key_bytes, biscuit.Algorithm.Ed25519)
-            # Create a keypair to get the corresponding public key
-            self.keypair = biscuit.KeyPair()
-            # We'll need to derive the public key from the private key
-            # For now, store the hex for later derivation
+            # Create keypair from the private key to get the corresponding public key
+            self.keypair = biscuit.KeyPair.from_private_key(self.private_key)
             self._private_key_hex = private_key
         else:
             self.keypair = biscuit.KeyPair()
@@ -209,10 +207,9 @@ class BiscuitGenerator:
             
             # Verify the existing token and extract facts
             verified_token = biscuit.Biscuit.from_base64(token_b64, public_key)
-            
+
             import time
-            authorizer = biscuit.Authorizer(f'time({int(time.time())});')
-            authorizer.add_token(verified_token)
+            authorizer = biscuit.AuthorizerBuilder(f'time({int(time.time())});').build(verified_token)
             
             # Extract existing facts
             existing_facts = []
