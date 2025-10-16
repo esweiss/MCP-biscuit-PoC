@@ -76,10 +76,10 @@ class MTLSBiscuitClient:
         print(f"   Server Audience: {self.server_identity}")
         
         enhanced_token = self.biscuit_generator.add_mtls_attestation_block(
-            base_token, 
-            self.client_identity, 
+            base_token,
+            self.client_identity,
             self.server_identity,
-            public_key_hex=self.biscuit_parser.public_key.to_hex() if self.biscuit_parser and self.biscuit_parser.public_key else None
+            public_key_hex=self.biscuit_parser.public_key.to_bytes().hex() if self.biscuit_parser and self.biscuit_parser.public_key else None
         )
         
         print(f"✅ Enhanced token created (blocks: {self._get_block_count(enhanced_token)})")

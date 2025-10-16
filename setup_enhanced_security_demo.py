@@ -67,7 +67,7 @@ def setup_biscuit_keys():
         from utilities.biscuit_generator import BiscuitGenerator
         
         generator = BiscuitGenerator()
-        private_key = generator.private_key.to_hex()
+        private_key = generator.private_key.to_bytes().hex()
         public_key = generator.get_public_key()
         
         print("🔑 Generated new Biscuit keypair")

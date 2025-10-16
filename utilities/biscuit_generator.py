@@ -16,7 +16,8 @@ import biscuit_auth as biscuit
 class BiscuitGenerator:
     def __init__(self, private_key: Optional[str] = None):
         if private_key:
-            self.private_key = biscuit.PrivateKey.from_hex(private_key)
+            private_key_bytes = bytes.fromhex(private_key)
+            self.private_key = biscuit.PrivateKey.from_bytes(private_key_bytes, biscuit.Algorithm.Ed25519)
             # Create a keypair to get the corresponding public key
             self.keypair = biscuit.KeyPair()
             # We'll need to derive the public key from the private key
@@ -126,11 +127,11 @@ class BiscuitGenerator:
     def get_public_key(self) -> str:
         """Get the public key for token verification."""
         if hasattr(self, 'keypair'):
-            return self.keypair.public_key.to_hex()
+            return self.keypair.public_key.to_bytes().hex()
         else:
             # For keys loaded from hex, we need to extract the public key
             keypair = biscuit.KeyPair()
-            return keypair.public_key.to_hex()
+            return keypair.public_key.to_bytes().hex()
     
     def get_public_key_object(self):
         """Get the public key object for verification."""
@@ -193,14 +194,16 @@ class BiscuitGenerator:
         try:
             # Parse the existing token to extract its facts
             if public_key_hex:
-                public_key = biscuit.PublicKey.from_hex(public_key_hex)
+                public_key_bytes = bytes.fromhex(public_key_hex)
+                public_key = biscuit.PublicKey.from_bytes(public_key_bytes, biscuit.Algorithm.Ed25519)
             elif hasattr(self, 'keypair'):
                 public_key = self.keypair.public_key
             else:
                 import os
                 env_public_key = os.getenv('BISCUIT_PUBLIC_KEY')
                 if env_public_key:
-                    public_key = biscuit.PublicKey.from_hex(env_public_key)
+                    public_key_bytes = bytes.fromhex(env_public_key)
+                    public_key = biscuit.PublicKey.from_bytes(public_key_bytes, biscuit.Algorithm.Ed25519)
                 else:
                     raise Exception("No public key available for token verification")
             
