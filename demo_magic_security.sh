@@ -123,19 +123,27 @@ function demo_prerequisites() {
     echo -e "${CYAN}🚀 Starting security infrastructure (Dual mTLS servers)...${COLOR_RESET}"
     echo ""
 
-    p "# Clean up any existing servers on ports 8443 and 9443"
+    p "# Clean up any existing servers on ports 8000, 8443, and 9443"
     pe "echo 'Stopping any existing servers...'"
+    pe "pkill -f 'server/app.py' || true"
+    pe "pkill -f 'server/mtls_proxy.py' || true"
     pe "pkill -f 'server/custom_mtls_server.py' || true"
     pe "pkill -f 'hipaa-server/custom_mtls_server.py' || true"
     pe "sleep 2  # Allow processes to terminate"
 
-    p "# Start Database mTLS server on port 8443"
-    pe "echo 'Starting Database mTLS server on port 8443...'"
-    pe "source .env && PYTHONPATH=. BISCUIT_PUBLIC_KEY=\$BISCUIT_PUBLIC_KEY uv run python server/custom_mtls_server.py > /tmp/database_mtls_server.log 2>&1 &"
+    p "# Start Backend MCP server on port 8000"
+    pe "echo 'Starting Backend MCP server on port 8000...'"
+    pe "source .env && ENABLE_TLS=false PYTHONPATH=. BISCUIT_PUBLIC_KEY=\$BISCUIT_PUBLIC_KEY uv run python server/app.py > /tmp/backend_mcp_server.log 2>&1 &"
     pe "sleep 3  # Allow server to start"
 
-    p "# Verify Database mTLS server started successfully"
-    pe "if grep -q 'ERROR.*address already in use' /tmp/database_mtls_server.log 2>/dev/null; then echo '❌ Database mTLS server failed to start (port 8443 in use)'; else echo '✅ Database mTLS server started'; fi"
+    p "# Start mTLS server on port 8443"
+    pe "echo 'Starting mTLS server on port 8443...'"
+    pe "PYTHONPATH=. uv run python server/mtls_proxy.py > /tmp/mtls_server.log 2>&1 &"
+    pe "sleep 3  # Allow server to start"
+
+    p "# Verify servers started successfully"
+    pe "if grep -q 'ERROR.*address already in use' /tmp/backend_mcp_server.log 2>/dev/null; then echo '❌ Backend MCP server failed to start (port 8000 in use)'; else echo '✅ Backend MCP server started'; fi"
+    pe "if grep -q 'ERROR.*address already in use' /tmp/mtls_server.log 2>/dev/null; then echo '❌ mTLS server failed to start (port 8443 in use)'; else echo '✅ mTLS server started'; fi"
 
     p "# Start HIPAA mTLS server on port 9443"
     pe "echo 'Starting HIPAA mTLS server on port 9443...'"
