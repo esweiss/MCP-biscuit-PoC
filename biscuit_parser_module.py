@@ -665,6 +665,126 @@ class BiscuitParser:
 
         return result
 
+    def format_token_facts(self, token_b64: str, current_time: Optional[datetime] = None) -> str:
+        """
+        Extract and format token facts for human-readable display.
+
+        Args:
+            token_b64 (str): Base64-encoded biscuit token
+            current_time (Optional[datetime]): Current time for time-based facts
+
+        Returns:
+            str: Human-readable formatted facts string
+        """
+        if not self.public_key:
+            return "❌ Cannot display facts: No public key provided"
+
+        try:
+            result = self.verify_and_extract_facts(token_b64, current_time)
+
+            if result["status"] != "verified_with_facts":
+                return f"❌ Token verification failed: {result.get('error', 'Unknown error')}"
+
+            facts = result.get("facts", {})
+            output_lines = []
+
+            # Helper function to extract value from fact
+            def extract_value(fact):
+                if hasattr(fact, 'terms') and len(fact.terms) > 0:
+                    return fact.terms[0]
+                elif isinstance(fact, dict):
+                    return list(fact.values())[0] if fact else None
+                else:
+                    return str(fact).strip('"')
+
+            # Patient name facts
+            patient_names = facts.get("patient_names", [])
+            if patient_names:
+                for pn in patient_names:
+                    val = extract_value(pn)
+                    if val:
+                        output_lines.append(f"patient_name(\"{val}\")")
+
+            # User facts
+            users = facts.get("users", [])
+            if users:
+                for u in users:
+                    val = extract_value(u)
+                    if val:
+                        output_lines.append(f"user(\"{val}\")")
+
+            # Resource facts
+            resources = facts.get("resources", [])
+            if resources:
+                for r in resources:
+                    val = extract_value(r)
+                    if val:
+                        output_lines.append(f"resource(\"{val}\")")
+
+            # Operation facts
+            operations = facts.get("operations", [])
+            if operations:
+                for o in operations:
+                    val = extract_value(o)
+                    if val:
+                        output_lines.append(f"operation(\"{val}\")")
+
+            # Role facts
+            roles = facts.get("roles", [])
+            if roles:
+                for role in roles:
+                    val = extract_value(role)
+                    if val:
+                        output_lines.append(f"role(\"{val}\")")
+
+            # mTLS client facts
+            mtls_clients = facts.get("mtls_clients", [])
+            if mtls_clients:
+                for mc in mtls_clients:
+                    val = extract_value(mc)
+                    if val:
+                        output_lines.append(f"mtls_client(\"{val}\")")
+
+            # mTLS audience facts
+            mtls_audiences = facts.get("mtls_audiences", [])
+            if mtls_audiences:
+                for ma in mtls_audiences:
+                    val = extract_value(ma)
+                    if val:
+                        output_lines.append(f"mtls_audience(\"{val}\")")
+
+            # Attestation time facts
+            attestation_times = facts.get("attestation_times", [])
+            if attestation_times:
+                for at in attestation_times:
+                    val = extract_value(at)
+                    if val:
+                        output_lines.append(f"attestation_time({val})")
+
+            # Sensitive data facts (data taint marker)
+            sensitive_data = facts.get("sensitive_data", [])
+            if sensitive_data:
+                for sd in sensitive_data:
+                    val = extract_value(sd)
+                    if val:
+                        output_lines.append(f"sensitive_data({val})")
+
+            # Expiry facts
+            expiry = facts.get("expiry", [])
+            if expiry:
+                for exp in expiry:
+                    val = extract_value(exp)
+                    if val:
+                        output_lines.append(f"expiry({val})")
+
+            if not output_lines:
+                return "No facts found in token"
+
+            return ", ".join(output_lines)
+
+        except Exception as e:
+            return f"❌ Error extracting facts: {str(e)}"
+
 
 class BiscuitAuthorizationError(Exception):
     """Exception raised when biscuit authorization fails."""

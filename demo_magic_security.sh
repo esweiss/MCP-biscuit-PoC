@@ -295,9 +295,8 @@ function demo_token_analysis() {
     p "# Step 3: Extract the matching public key"
     pe "PUBLIC_KEY=\$(grep 'Public Key:' /tmp/token_demo.txt | cut -d: -f2 | tr -d ' ')"
 
-    p "# Step 4: Display what we extracted"
-    pe "echo \"Token: \${TOKEN:0:50}...\""
-    pe "echo \"Public Key: \${PUBLIC_KEY:0:50}...\""
+    p "# Step 4: Display the token facts (what the token authorizes)"
+    pe "echo \"Token Facts: \$(PYTHONPATH=. uv run python utilities/format_token_facts.py \"\$TOKEN\" \"\$PUBLIC_KEY\")\""
 
     echo ""
     echo -e "${YELLOW}🔍 Now let's analyze the token contents and verify its cryptographic signature...${COLOR_RESET}"
@@ -527,17 +526,16 @@ function demo_security_tests() {
 
     p "# Use configured token for tampering test"
     pe "TOKEN=\$(grep BISCUIT_TOKEN .env | cut -d= -f2)"
+    pe "PUBLIC_KEY=\$(grep BISCUIT_PUBLIC_KEY .env | cut -d= -f2)"
+
+    p "# Show the original token facts"
+    pe "echo \"Original token facts: \$(PYTHONPATH=. uv run python utilities/format_token_facts.py \"\$TOKEN\" \"\$PUBLIC_KEY\")\""
 
     p "# Create a tampered version (change last character)"
     pe "TAMPERED_TOKEN=\"\${TOKEN%?}X\""
 
-    p "# Show the difference"
-    pe "echo \"Original:  \${TOKEN:0:50}...\""
-    pe "echo \"Tampered:  \${TAMPERED_TOKEN:0:50}...\""
-
     p "# Try to verify the tampered token (should fail)"
     pe "echo \"Testing tampered token verification...\""
-    pe "PUBLIC_KEY=\$(grep BISCUIT_PUBLIC_KEY .env | cut -d= -f2)"
     pe "uv run python utilities/biscuit_parser_cli.py \"\$TAMPERED_TOKEN\" --public-key \"\$PUBLIC_KEY\" --analyze || echo '✅ Tampered token properly rejected'"
 
     echo ""
@@ -581,13 +579,13 @@ function demo_complete_stack() {
 
     p "# Step 1: Use configured token (comprehensive token with all security attributes can be generated if needed)"
     pe "TOKEN=\$(grep BISCUIT_TOKEN .env | cut -d= -f2)"
+    pe "PUBLIC_KEY=\$(grep BISCUIT_PUBLIC_KEY .env | cut -d= -f2)"
 
     p "# Step 2: Test mTLS layer (transport security)"
     pe "timeout 3 curl -s -w 'mTLS Status: %{http_code}\\n' --cert certs/claude-client-cert.pem --key certs/claude-client-key.pem --cacert certs/ca-cert.pem https://localhost:8443/sse -o /dev/null"
 
-    p "# Step 3: Display the comprehensive token"
-    pe "echo \"Complete Token: \${TOKEN:0:50}...\""
-    pe "echo \"✅ Token contains: patient_name, client_identity, mtls_audience\""
+    p "# Step 3: Display the token authorization facts"
+    pe "echo \"Token Facts: \$(PYTHONPATH=. uv run python utilities/format_token_facts.py \"\$TOKEN\" \"\$PUBLIC_KEY\")\""
 
     echo ""
     echo -e "${GREEN}🎉 All security layers validated successfully!${COLOR_RESET}"
