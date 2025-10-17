@@ -183,6 +183,7 @@ curl -k --cert certs/claude-client-cert.pem --key certs/claude-client-key.pem \
 - **[SCRIPT.md](SCRIPT.md)**: Complete setup guide with step-by-step instructions
 - **[SECURITY.md](SECURITY.md)**: Technical deep dive into the security architecture
 - **[MTLS_IMPLEMENTATION.md](MTLS_IMPLEMENTATION.md)**: mTLS technical documentation and architecture
+- **[DATA_TAINT_PROTECTION.md](DATA_TAINT_PROTECTION.md)**: Data exfiltration prevention and information flow control
 - **[PART3_TESTING_GUIDE.md](PART3_TESTING_GUIDE.md)**: Manual testing procedures and validation
 - **Code Comments**: Inline documentation throughout the codebase
 
