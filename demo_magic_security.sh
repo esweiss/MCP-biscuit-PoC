@@ -460,19 +460,19 @@ function demo_data_taint_protection() {
     echo -e "${CYAN}  5. 🔓 Clean token → HIPAA server → ALLOWED (normal operation)${COLOR_RESET}"
     echo ""
 
-    p "# Step 1: Run comprehensive dual mTLS + data taint protection test"
-    pe "source .env && ./local/test_full_mtls_workflow.sh"
+    p "# Step 1: Run comprehensive data exfiltration protection demonstration"
+    pe "source .env && ./local/demo_data_exfiltration_protection.sh"
 
     echo ""
     echo -e "${YELLOW}🔒 Let's break down what just happened:${COLOR_RESET}"
     echo ""
 
-    p "# Explanation of the dual mTLS + data taint workflow:"
-    pe "echo '1️⃣  mTLS auth to Database server (8443) → Biscuit token verified'"
-    pe "echo '2️⃣  Clean token queries database → Gets data + Attenuated token'"
-    pe "echo '3️⃣  Attenuated token has new block: sensitive_data(1)'"
-    pe "echo '4️⃣  mTLS auth to HIPAA server (9443) → Detects taint → Rejects'"
-    pe "echo '5️⃣  Original clean token → HIPAA server → Still works'"
+    p "# Explanation of the data exfiltration protection workflow:"
+    pe "echo '1️⃣  mTLS auth to Database server (8443) → Clean token verified'"
+    pe "echo '2️⃣  mTLS auth to HIPAA server (9443) with clean token → Accepted ✅'"
+    pe "echo '3️⃣  Created tainted token with sensitive_data(1) fact (simulating data access)'"
+    pe "echo '4️⃣  mTLS auth to HIPAA server with tainted token → REJECTED 🔒'"
+    pe "echo '5️⃣  Clean token still works for HIPAA server → Normal operation ✅'"
 
     echo ""
     echo -e "${GREEN}🎯 Key Security Properties:${COLOR_RESET}"
