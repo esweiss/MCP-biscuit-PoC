@@ -448,46 +448,66 @@ function demo_unauthorized_all_patients() {
 # Demo 10: Data Taint Protection
 ########################
 function demo_data_taint_protection() {
-    demo_section "DEMO 10: DUAL mTLS + DATA TAINT PROTECTION" "Complete anti-exfiltration workflow with mTLS servers"
+    demo_section "DEMO 10: AUTOMATIC DATA TAINT PROTECTION" "Preventing data exfiltration with automatic token attenuation"
 
-    echo -e "${MAGENTA}🎯 Scenario: Demonstrate information flow control across dual mTLS servers${COLOR_RESET}"
+    echo -e "${MAGENTA}🎯 Scenario: Demonstrate automatic token attenuation and data exfiltration prevention${COLOR_RESET}"
     echo ""
-    echo -e "${WHITE}This demonstrates the complete security workflow:${COLOR_RESET}"
+    echo -e "${WHITE}This demonstrates the AUTOMATIC security workflow:${COLOR_RESET}"
     echo -e "${CYAN}  1. 🔒 mTLS connection to Database server (port 8443)${COLOR_RESET}"
-    echo -e "${CYAN}  2. 🗄️  Query database → Token gets tainted with sensitive_data=1${COLOR_RESET}"
-    echo -e "${CYAN}  3. 🔒 mTLS connection to HIPAA server (port 9443)${COLOR_RESET}"
-    echo -e "${CYAN}  4. 🌐 Try internet tool with tainted token → REJECTED${COLOR_RESET}"
-    echo -e "${CYAN}  5. 🔓 Clean token → HIPAA server → ALLOWED (normal operation)${COLOR_RESET}"
+    echo -e "${CYAN}  2. 🗄️  Database query returns data → Token AUTOMATICALLY attenuated${COLOR_RESET}"
+    echo -e "${CYAN}  3. 🔐 Tainted token created with sensitive_data(1) fact${COLOR_RESET}"
+    echo -e "${CYAN}  4. 🔒 mTLS connection to HIPAA server (port 9443)${COLOR_RESET}"
+    echo -e "${CYAN}  5. 🚫 HIPAA server detects taint → Request REJECTED (403 Forbidden)${COLOR_RESET}"
+    echo -e "${CYAN}  6. ✅ Clean token still works → Normal operation preserved${COLOR_RESET}"
+    echo ""
+    echo -e "${YELLOW}💡 Key Insight: The database server AUTOMATICALLY taints tokens after${COLOR_RESET}"
+    echo -e "${YELLOW}   returning data. This prevents the same token from accessing internet APIs.${COLOR_RESET}"
     echo ""
 
-    p "# Step 1: Run comprehensive data exfiltration protection demonstration"
+    p "# Run comprehensive automatic data taint protection demonstration"
     pe "source .env && ./local/demo_data_exfiltration_protection.sh"
 
     echo ""
-    echo -e "${YELLOW}🔒 Let's break down what just happened:${COLOR_RESET}"
+    echo -e "${YELLOW}🔒 What just happened (breakdown):${COLOR_RESET}"
     echo ""
 
-    p "# Explanation of the data exfiltration protection workflow:"
-    pe "echo '1️⃣  mTLS auth to Database server (8443) → Clean token verified'"
-    pe "echo '2️⃣  mTLS auth to HIPAA server (9443) with clean token → Accepted ✅'"
-    pe "echo '3️⃣  Created tainted token with sensitive_data(1) fact (simulating data access)'"
-    pe "echo '4️⃣  mTLS auth to HIPAA server with tainted token → REJECTED 🔒'"
-    pe "echo '5️⃣  Clean token still works for HIPAA server → Normal operation ✅'"
+    p "# Automatic token attenuation workflow:"
+    pe "echo '1️⃣  Database Server (8443):'"
+    pe "echo '    • Clean token authenticated via mTLS ✅'"
+    pe "echo '    • Query executed: SELECT * FROM patients...'"
+    pe "echo '    • Data returned → Automatic attenuation triggered'"
+    pe "echo '    • New fact added: sensitive_data(1)'"
+    pe "echo ''"
+    pe "echo '2️⃣  HIPAA Server (9443) with Tainted Token:'"
+    pe "echo '    • Tainted token sent with patient data'"
+    pe "echo '    • Server checks for sensitive_data fact'"
+    pe "echo '    • Detection: Token contains sensitive_data(1)'"
+    pe "echo '    • Result: 403 Forbidden → Exfiltration BLOCKED 🔒'"
+    pe "echo ''"
+    pe "echo '3️⃣  HIPAA Server (9443) with Clean Token:'"
+    pe "echo '    • Clean token (no database access yet)'"
+    pe "echo '    • Server checks for sensitive_data fact'"
+    pe "echo '    • Detection: Token is clean'"
+    pe "echo '    • Result: 200 OK → Normal operation ✅'"
 
     echo ""
-    echo -e "${GREEN}🎯 Key Security Properties:${COLOR_RESET}"
-    echo -e "${WHITE}   ✅ Dual mTLS servers with independent security boundaries${COLOR_RESET}"
-    echo -e "${WHITE}   ✅ Cryptographic taint tracking (non-bypassable)${COLOR_RESET}"
-    echo -e "${WHITE}   ✅ Automatic token attenuation after data access${COLOR_RESET}"
-    echo -e "${WHITE}   ✅ Internet tools reject tainted tokens${COLOR_RESET}"
-    echo -e "${WHITE}   ✅ No central state required (stateless enforcement)${COLOR_RESET}"
+    echo -e "${GREEN}🎯 Key Security Properties Validated:${COLOR_RESET}"
+    echo -e "${WHITE}   ✅ AUTOMATIC token attenuation (server/tools/query.py:147-189)${COLOR_RESET}"
+    echo -e "${WHITE}   ✅ Cryptographic taint tracking (cannot be removed or bypassed)${COLOR_RESET}"
+    echo -e "${WHITE}   ✅ Internet API protection (hipaa-server checks every token)${COLOR_RESET}"
+    echo -e "${WHITE}   ✅ Normal operations preserved (clean tokens work everywhere)${COLOR_RESET}"
+    echo -e "${WHITE}   ✅ Stateless enforcement (no central tracking database needed)${COLOR_RESET}"
+    echo ""
+    echo -e "${MAGENTA}🚨 Threat Model Protected:${COLOR_RESET}"
+    echo -e "${WHITE}   Even if an AI agent is compromised and tries to exfiltrate patient${COLOR_RESET}"
+    echo -e "${WHITE}   data to an external service, the AUTOMATIC token taint prevents it.${COLOR_RESET}"
 
-    demo_explanation "🔒 Dual mTLS servers create separate security domains
-   🔐 Token attenuation creates cryptographic proof of data access
-   🌐 HIPAA server (internet-accessible) checks for taint
-   🛡️  Prevents accidental or malicious data exfiltration
-   🎫 Information flow control enforced at token level
-   🎯 Defense-in-depth: mTLS + Biscuit + Token attenuation"
+    demo_explanation "🔐 Database server AUTOMATICALLY taints tokens after returning data
+   🚫 Internet services detect taint and reject requests
+   🎫 Cryptographic proof of data access (cannot be bypassed)
+   ✅ Normal operation preserved for clean tokens
+   🛡️  Defense-in-depth: mTLS + Biscuit + Automatic Attenuation
+   🎯 No manual tainting or central state needed"
 
     wait_for_enter
 }
