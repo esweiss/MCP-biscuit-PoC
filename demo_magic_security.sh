@@ -124,7 +124,7 @@ function demo_prerequisites() {
     echo ""
 
     p "# Clean up any existing servers on ports 8000, 8443, and 9443"
-    pe "echo 'Stopping any existing servers...'"
+    p "Stopping any existing servers..."
     pe "pkill -f 'server/app.py' || true"
     pe "pkill -f 'server/mtls_proxy.py' || true"
     pe "pkill -f 'server/custom_mtls_server.py' || true"
@@ -132,12 +132,12 @@ function demo_prerequisites() {
     pe "sleep 2  # Allow processes to terminate"
 
     p "# Start Backend MCP server on port 8000"
-    pe "echo 'Starting Backend MCP server on port 8000...'"
+    p "Starting Backend MCP server on port 8000..."
     pe "source .env && ENABLE_TLS=false PYTHONPATH=. BISCUIT_PUBLIC_KEY=\$BISCUIT_PUBLIC_KEY uv run python server/app.py > /tmp/backend_mcp_server.log 2>&1 &"
     pe "sleep 3  # Allow server to start"
 
     p "# Start mTLS server on port 8443"
-    pe "echo 'Starting mTLS server on port 8443...'"
+    p "Starting mTLS server on port 8443..."
     pe "PYTHONPATH=. uv run python server/mtls_proxy.py > /tmp/mtls_server.log 2>&1 &"
     pe "sleep 3  # Allow server to start"
 
@@ -146,7 +146,7 @@ function demo_prerequisites() {
     pe "if grep -q 'ERROR.*address already in use' /tmp/mtls_server.log 2>/dev/null; then echo '❌ mTLS server failed to start (port 8443 in use)'; else echo '✅ mTLS server started'; fi"
 
     p "# Start HIPAA mTLS server on port 9443"
-    pe "echo 'Starting HIPAA mTLS server on port 9443...'"
+    p "Starting HIPAA mTLS server on port 9443..."
     pe "source .env && PYTHONPATH=. BISCUIT_PUBLIC_KEY=\$BISCUIT_PUBLIC_KEY uv run python hipaa-server/custom_mtls_server.py > /tmp/hipaa_mtls_server.log 2>&1 &"
     pe "sleep 3  # Allow server to start"
 
@@ -335,7 +335,7 @@ function demo_database_rls_success() {
     pe "export BISCUIT_TOKEN=\"\$TOKEN\""
 
     p "# Step 3: Display the natural language query we'll send to Claude"
-    pe "echo 'Natural Language Query: \"Show me all medical records for patient Erin oRTEga\"'"
+    p "Natural Language Query: \"Show me all medical records for patient Erin oRTEga\""
 
     echo ""
     echo -e "${YELLOW}🤖 Connecting via mTLS to Database server (port 8443)...${COLOR_RESET}"
@@ -378,7 +378,7 @@ function demo_database_rls_failure() {
     pe "export BISCUIT_TOKEN=\"\$TOKEN\""
 
     p "# Step 3: Display the same natural language query as before"
-    pe "echo 'Natural Language Query: \"Show me all medical records for patient Erin oRTEga\"'"
+    p "Natural Language Query: \"Show me all medical records for patient Erin oRTEga\""
 
     echo ""
     echo -e "${YELLOW}🔒 Security Test: Asking for Erin's data with DAvID's authorization token...${COLOR_RESET}"
@@ -421,7 +421,7 @@ function demo_unauthorized_all_patients() {
     pe "export BISCUIT_TOKEN=\"\$TOKEN\""
 
     p "# Step 3: Display the broad access attempt query"
-    pe "echo 'Natural Language Query: \"Show me all medical records for all patients\"'"
+    p "Natural Language Query: \"Show me all medical records for all patients\""
 
     echo ""
     echo -e "${RED}🚨 Security Test: Attempting to access ALL patient data with limited authorization...${COLOR_RESET}"
@@ -471,23 +471,23 @@ function demo_data_taint_protection() {
     echo ""
 
     p "# Automatic token attenuation workflow:"
-    pe "echo '1️⃣  Database Server (8443):'"
-    pe "echo '    • Clean token authenticated via mTLS ✅'"
-    pe "echo '    • Query executed: SELECT * FROM patients...'"
-    pe "echo '    • Data returned → Automatic attenuation triggered'"
-    pe "echo '    • New fact added: sensitive_data(1)'"
-    pe "echo ''"
-    pe "echo '2️⃣  HIPAA Server (9443) with Tainted Token:'"
-    pe "echo '    • Tainted token sent with patient data'"
-    pe "echo '    • Server checks for sensitive_data fact'"
-    pe "echo '    • Detection: Token contains sensitive_data(1)'"
-    pe "echo '    • Result: 403 Forbidden → Exfiltration BLOCKED 🔒'"
-    pe "echo ''"
-    pe "echo '3️⃣  HIPAA Server (9443) with Clean Token:'"
-    pe "echo '    • Clean token (no database access yet)'"
-    pe "echo '    • Server checks for sensitive_data fact'"
-    pe "echo '    • Detection: Token is clean'"
-    pe "echo '    • Result: 200 OK → Normal operation ✅'"
+    p "1️⃣  Database Server (8443):"
+    p "    • Clean token authenticated via mTLS ✅"
+    p "    • Query executed: SELECT * FROM patients..."
+    p "    • Data returned → Automatic attenuation triggered"
+    p "    • New fact added: sensitive_data(1)"
+    p ""
+    p "2️⃣  HIPAA Server (9443) with Tainted Token:"
+    p "    • Tainted token sent with patient data"
+    p "    • Server checks for sensitive_data fact"
+    p "    • Detection: Token contains sensitive_data(1)"
+    p "    • Result: 403 Forbidden → Exfiltration BLOCKED 🔒"
+    p ""
+    p "3️⃣  HIPAA Server (9443) with Clean Token:"
+    p "    • Clean token (no database access yet)"
+    p "    • Server checks for sensitive_data fact"
+    p "    • Detection: Token is clean"
+    p "    • Result: 200 OK → Normal operation ✅"
 
     echo ""
     echo -e "${GREEN}🎯 Key Security Properties Validated:${COLOR_RESET}"
@@ -535,7 +535,7 @@ function demo_security_tests() {
     pe "TAMPERED_TOKEN=\"\${TOKEN%?}X\""
 
     p "# Try to verify the tampered token (should fail)"
-    pe "echo \"Testing tampered token verification...\""
+    p "Testing tampered token verification..."
     pe "uv run python utilities/biscuit_parser_cli.py \"\$TAMPERED_TOKEN\" --public-key \"\$PUBLIC_KEY\" --analyze || echo '✅ Tampered token properly rejected'"
 
     echo ""
